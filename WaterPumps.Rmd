@@ -62,10 +62,31 @@ KeepVars$vars = rownames(KeepVars)
 WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepVars$factorlevels==FALSE)])]
 ```
 
-## Exploratory Analysis: Graphs To Be Included in the Paper 
+## Exploratory Analysis: Visualizations  *ADD VISUALIZATIONS YOU LIKE TO THIS SECTION - WE WILL SELECT THE ONES WE LIKE AT THE END*
 
 ```{r}
+## Aggregate waterpump count by region
+regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
+                                setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
+                                 function(x) as.numeric(geocode(x)))))), c('longitude','latitude')))
 
+#Drop Row Names
+rownames(regional_geocodes) <- c()
+#Aggregate Pump Kinds by Region
+PumpsByRegion=dcast(WaterPumps, region~status_group, fun=length, value.var = 'status_group')
+PumpsByRegion = merge(PumpsByRegion, regional_geocodes, id='region')
+colnames(PumpsByRegion)=c("region", "functional","needsrepair", "nonfunctional","longitude","latitude" )
+
+Tanzania = as.numeric(geocode("Tanzania"))
+Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
+  geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='blue', alpha=0.4,
+             size=PumpsByRegion$functional*0.01)+
+  geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='orange', alpha=0.4,
+             size=PumpsByRegion$needsrepair*0.01)+
+  geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='red', alpha=0.4,
+             size=PumpsByRegion$nonfunctional*0.01)+
+  ggtitle('Number of Pumps by Status by Region')
+Tanzania_Map
 ```
 
 ## Variable Selection
