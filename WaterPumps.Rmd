@@ -5,7 +5,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
 ```
 ## About the Dataset
 Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predict what could impact the state of water pumps. 
