@@ -15,7 +15,7 @@ More information about the challenge and the dataset can be found here - https:/
 **MORE METADATA TO FOLLOW**
 ```{r}
 #Libraries
-library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','glmnetcr', 'knitr')
+library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','glmnetcr', 'knitr', 'xgboost')
 lapply(library_list, require, character.only = TRUE)
 ```
 
@@ -154,10 +154,13 @@ valid.y = WaterPumps$status_group[valid]
 ```
 
 ```{r}
+library(glmnet)
+library(glmnetcr)
 # LASSO
 grid = 10^seq(10,-2, length=100)
 set.seed(500)
 lasso.mod = glmnet(train.x, train.y, alpha=1, lambda=grid, family = 'multinomial')
+
 
 # Cross-Validate to Find Best Lambda
 lasso.cv.out = cv.glmnet(train.x,train.y,alpha=1,lambda=grid, family = 'multinomial')
@@ -268,6 +271,37 @@ boost.predicted <- as.factor(ifelse(boost.predicted==1, 'functional',ifelse(boos
 ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
 ```
 
+## XGBoost
+XGBoost algorithm is one of the popular winning recipe of data science competitions. It has linear model solver as well as tree learning algorithm. We thought it would be a great way to learn and compare traditional algorithms with recently developed ones. 
+```{r}
+xgboost.data = WaterPumps[,c('amount_tsh','gps_height','longitude','latitude','basin','region_code','district_code','population','public_meeting','scheme_management','permit','construction_year','extraction_type_class','management_group','payment_type','quality_group','quantity_group','source_class','waterpoint_type_group')]
+
+xgboost.data['response'] = as.numeric(WaterPumps$status_group) - 1
+xgboost.modelmatrix = model.matrix(response~., xgboost.data)[,-1]
+xgboost.train.x = xgboost.modelmatrix[train,]
+xgboost.valid.x = xgboost.modelmatrix[valid,]
+xgboost.train.y = xgboost.data$response[train]
+xgboost.valid.y = xgboost.data$response[valid]
+
+no_of_classes = length(unique(xgboost.data$response))
+xgb_params = list("objective" = "multi:softprob",
+                   "eval_metric" = "mlogloss",
+                   "num_class" = no_of_classes)
+nround    = 50 
+cv.nfold  = 5
+
+train_matrix = xgb.DMatrix(data = xgboost.train.x, label = xgboost.train.y)
+
+cv_model = xgb.cv(params = xgb_params,
+                   data = train_matrix, 
+                   nrounds = nround,
+                   nfold = cv.nfold,
+                   verbose = FALSE,
+                   prediction = TRUE)
+train_prediction = data.frame(cv_model$pred) %>% mutate(max_prob = max.col(., ties.method = "last"), label = xgboost.data[train,]$response + 1)
+
+confusionMatrix(factor(train_prediction$label), factor(train_prediction$max_prob), mode = "everything")
+```
 ## Evaluation & Selection
 
 ```{r}
