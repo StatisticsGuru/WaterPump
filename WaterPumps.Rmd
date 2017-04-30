@@ -15,7 +15,7 @@ More information about the challenge and the dataset can be found here - https:/
 **MORE METADATA TO FOLLOW**
 ```{r}
 #Libraries
-library_list = list('ggplot2','glmnet','ggmap','reshape2', 'tree')
+library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest')
 lapply(library_list, require, character.only = TRUE)
 ```
 
@@ -119,8 +119,21 @@ lasso.mod = glmnet(train.x, train.y, alpha=1, lambda=grid, family = 'multinomial
 # Cross-Validate to Find Best Lambda
 lasso.cv.out = cv.glmnet(train.x,train.y,alpha=1,lambda=grid, family = 'multinomial')
 minlambda = lasso.cv.out$lambda.min
+lasso.coefs = predict(lasso.mod,s=minlambda,type="coefficients")
 
+lasso.coefs = cbind.data.frame(data.frame('Variable' = rownames(data.frame(lasso.coefs$functional[,1]))),
+                               data.frame("Functional"=lasso.coefs$functional[,1]),
+                               data.frame("NeedsRepair"=lasso.coefs$`functional needs repair`[,1]),
+                               data.frame("NonFunctional"=lasso.coefs$`non functional`[,1]))
+rownames(lasso.coefs) <- c()
+
+```
+
+```{r}
 # Random Forest 
+WaterPumps[sapply(WaterPumps, is.character)] <- lapply(WaterPumps[, which(sapply(WaterPumps, is.character))], as.factor)
+RandomForest.mod = randomForest(status_group~., data=WaterPumps[train,], importance=TRUE)
+
 ```
 
 ## Modeling
