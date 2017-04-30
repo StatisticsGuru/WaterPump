@@ -13,7 +13,7 @@ A smart understanding of which waterpoints will fail can improve maintenance ope
 More information about the challenge and the dataset can be found here - https://www.drivendata.org/competitions/7/pump-it-up-data-mining-the-water-table/page/23/
 
 **MORE METADATA TO FOLLOW**
-```{r, echo = TRUE, eval = TRUE}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 #Libraries
 library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','glmnetcr', 'knitr', 'xgboost')
 lapply(library_list, require, character.only = TRUE)
@@ -21,7 +21,7 @@ lapply(library_list, require, character.only = TRUE)
 
 ## Import Data
 
-```{r, echo = TRUE, eval = TRUE}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 # Define train_values_url
 train_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/4910797b-ee55-40a7-8668-10efd5c1b960.csv"
 WaterPumps_value = read.csv(train_values_url, header=TRUE, stringsAsFactors = FALSE)
@@ -34,7 +34,7 @@ test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68
 
 ## Data Cleaning:
 
-```{r, echo = TRUE, eval = TRUE}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 #Merge into a single datset
 WaterPumps = merge(WaterPumps_value, WaterPumps_label, by='id')
 
@@ -48,7 +48,7 @@ WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
 ```
 
 
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 # Clean Data: Filter out variables with more than 30 factors - model matrix becomes too large
 KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>30){FALSE} else {TRUE}})),
                     c('factorlevels'))
@@ -57,7 +57,7 @@ WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepV
 ```
 
 ## Exploratory Analysis: Visualizations  *ADD VISUALIZATIONS YOU LIKE TO THIS SECTION - WE WILL SELECT THE ONES WE LIKE AT THE END*
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 library(ggplot2)
 
 par(mfrow=c(2,3))
@@ -84,7 +84,7 @@ ggplot(subset(WaterPumps, construction_year > 0), aes(x = construction_year)) +
 
 
 ```
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
                                 setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
@@ -109,7 +109,7 @@ Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
 Tanzania_Map
 ```
 
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 # Water Pump Position Plot
 
 # Convert Latitude/Longitude to kilometers. 
@@ -134,7 +134,7 @@ legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, 
 
 ## Variable Selection
 
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 # Take Only Non-Missing Values
 WaterPumps <- WaterPumps[complete.cases(WaterPumps),]
 
@@ -153,7 +153,7 @@ train.y = WaterPumps$status_group[train]
 valid.y = WaterPumps$status_group[valid]
 ```
 
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 # LASSO
 grid = 10^seq(10,-2, length=100)
 set.seed(500)
@@ -175,7 +175,7 @@ varnames = as.character(lasso.coefs$Variable[lasso.coefs$sum!=0])
 
 ## Binary Outcome Lasso
 
-```{r, echo = TRUE, eval = TRUE}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 # Binary Outcome Lasso
 train.df = cbind.data.frame(train.x, data.frame('status_group'=train.y))
 for (each in levels(train.y)){
@@ -193,7 +193,7 @@ print(confusionMatrix(fitted, temp.y))
 
 ## Multinomial Logit Model
 
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 # Rita - Multinomial Logit
 #--------------------------------------------------------------------------------------------------------------
 modelmatrix_full = cbind.data.frame(modelmatrix, data.frame('status_group'=WaterPumps$status_group))
@@ -243,7 +243,7 @@ BIC is minimized at step `r BIC.step[[1]]`
 
 ## Random Forest
 
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 # Random Forest 
 set.seed(500)
 WaterPumps[sapply(WaterPumps, is.character)] <- lapply(WaterPumps[, which(sapply(WaterPumps, is.character))], as.factor)
@@ -282,7 +282,7 @@ ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
 
 ## XGBoost
 XGBoost algorithm is one of the popular winning recipe of data science competitions. It has linear model solver as well as tree learning algorithm. We thought it would be a great way to learn and compare traditional algorithms with recently developed ones.
-```{r}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 features = c('amount_tsh','gps_height','longitude','latitude','basin','region_code','district_code','population','public_meeting','scheme_management','permit','construction_year','extraction_type_class','management_group','payment_type','quality_group','quantity_group','source_class','waterpoint_type_group')
 
 xgboost.data = WaterPumps[,features]
@@ -332,7 +332,7 @@ print(gp)
 ```
 ## Evaluation & Selection
 
-```{r, echo = TRUE, eval = TRUE}
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 ### Include model comparison figures here
 ```
 
