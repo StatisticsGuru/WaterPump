@@ -106,8 +106,7 @@ grid()
 legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, col = c('green','blue','red'),inset = 0.01)
 ```
 
-
-## Variable Selection
+## Train & Validation Split
 
 ```{r, echo = TRUE, eval = TRUE}
 # Take Only Non-Missing Values
@@ -148,56 +147,25 @@ lasso.coefs <- cbind(lasso.coefs, 'sum'= apply(lasso.coefs[,-which(names(lasso.c
 varnames = as.character(lasso.coefs$Variable[lasso.coefs$sum!=0])
 ```
 
-# Multinomial Logit Model
-
+## Binary Outcome Lasso
 
 ```{r, echo = TRUE, eval = TRUE}
-# Multinomial Glmnet Model
-
-# One-vs-One Logit
-
-
-allLevels = unique(train.y);
-
-for(i in 1) {
-# train.1V1x = as.data.frame(train.x)
-# dmtrain.x = data.matrix(train.x)
-# valid.1V1.x = as.data.frame(valid.x)
-# dmvalid.x = data.matrix(valid.x)
-
-train.1V1.y = train.y 
-train.1V1.y[train.y != allLevels[i]] = 'OTHER'
-train.1V1.y = data.frame(Response = factor(train.1V1.y))
-
-# train.1V1.y = as.data.frame(train.1V1.y)
-# dmtrain.1V1.y = data.matrix(train.1V1.y)
-
-valid.1V1.y = valid.y 
-valid.1V1.y[valid.y != allLevels[i]] = 'OTHER'
-# valid.1V1.y = as.data.frame(valid.1V1.y)
-# dmvalid.1V1.y = data.matrix(valid.1V1.y)
-
-
-fit.glmnet.cr <- glmnet.cr(train.x, train.1V1.y, alpha = 1)
-
-
-# plot(fit.glmnet.cr, xvar = "step", type = "bic")
-# plot(fit.glmnet.cr, xvar = "step", type = "coefficients")
-BIC.step <- select.glmnet.cr(fit.glmnet.cr)
-
-nonzero.glmnet.cr(fit.glmnet.cr, s = BIC.step)
-
-lassomulti.fitted = fitted(fit.glmnet.cr, s = BIC.step)
-
-#lassomulti.predicted = predict(fit.glmnet.cr,newx=valid.x)
-
-# confusionMatrix(factor(lassomulti.fitted$class, levels=levels(train.y)), train.y)
-# confusionMatrix(factor(lassomulti.predicted$class[,32], levels=levels(valid.y)), valid.y)
-
+# Binary Outcome Lasso 
+train.df = cbind.data.frame(train.x, data.frame('status_group'=train.y))
+for (each in levels(train.y)){
+temp.y = train.y
+levels(temp.y) = list(other=c(levels(train.y)[!levels(train.y) %in% each]),selected=each)
+# Fit LASSO
+fit.lasso = glmnet(train.x, temp.y, alpha=1, family = 'binomial')
+# Cross-Validate to Find Best Lambda
+lasso.cv.out = cv.glmnet(train.x,temp.y,alpha=1,family = 'binomial')
+minlambda = lasso.cv.out$lambda.min
+fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='class')
+print(confusionMatrix(fitted, temp.y))
 }
 ```
 
-
+## Multinomial Logit Model
 
 ```{r}
 # Rita - Multinomial Logit
@@ -247,7 +215,7 @@ confusionMatrix(factor(lassomulti.predicted$class[,minBIC], levels=levels(dmvali
 BIC is minimized at step `r BIC.step[[1]]`
 
 
-# Random Forest 
+## Random Forest 
 
 ```{r}
 # Random Forest 
@@ -267,7 +235,7 @@ ConfValidRF = confusionMatrix(rf.predicted, valid.y)
 
 From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(ConfValid$overall["Accuracy"][[1]],3)*100`%. 
 
-# Random Forest with Boosting 
+## Random Forest with Boosting 
 
 ```{r}
 set.seed(500)
@@ -289,7 +257,15 @@ ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
 ## Evaluation & Selection
 
 ```{r, echo = TRUE, eval = TRUE}
-
+### Include model comparison figures here
 ```
+
+## Conclusion
+
+Based on the results above, random forest returns the best predictions. 
+
+
+
+
 
 
