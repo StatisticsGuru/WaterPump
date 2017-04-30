@@ -13,7 +13,7 @@ A smart understanding of which waterpoints will fail can improve maintenance ope
 More information about the challenge and the dataset can be found here - https://www.drivendata.org/competitions/7/pump-it-up-data-mining-the-water-table/page/23/
 
 **MORE METADATA TO FOLLOW**
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 #Libraries
 library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','glmnetcr', 'knitr')
 lapply(library_list, require, character.only = TRUE)
@@ -21,7 +21,7 @@ lapply(library_list, require, character.only = TRUE)
 
 ## Import Data
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Define train_values_url
 train_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/4910797b-ee55-40a7-8668-10efd5c1b960.csv"
 WaterPumps_value = read.csv(train_values_url, header=TRUE, stringsAsFactors = FALSE)
@@ -34,7 +34,7 @@ test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68
 
 ## Data Cleaning:
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 #Merge into a single datset
 WaterPumps = merge(WaterPumps_value, WaterPumps_label, by='id')
 
@@ -48,6 +48,7 @@ WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
 ```
 
 
+
 ```{r}
 # Clean Data: Filter out variables with more than 30 factors - model matrix becomes too large
 KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>30){FALSE} else {TRUE}})),
@@ -58,7 +59,7 @@ WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepV
 
 ## Exploratory Analysis: Visualizations  *ADD VISUALIZATIONS YOU LIKE TO THIS SECTION - WE WILL SELECT THE ONES WE LIKE AT THE END*
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
                                 setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
@@ -83,7 +84,7 @@ Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
 Tanzania_Map
 ```
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Water Pump Position Plot
 
 # Convert Latitude/Longitude to kilometers. 
@@ -108,7 +109,7 @@ legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, 
 
 ## Variable Selection
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Take Only Non-Missing Values
 WaterPumps <- WaterPumps[complete.cases(WaterPumps),]
 
@@ -127,7 +128,7 @@ train.y = WaterPumps$status_group[train]
 valid.y = WaterPumps$status_group[valid]
 ```
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # LASSO
 grid = 10^seq(10,-2, length=100)
 set.seed(500)
@@ -149,10 +150,54 @@ varnames = as.character(lasso.coefs$Variable[lasso.coefs$sum!=0])
 
 # Multinomial Logit Model
 
-```{r}
-# Multinomial Logit
 
+```{r, echo = TRUE, eval = TRUE}
+# Multinomial Glmnet Model
+
+# One-vs-One Logit
+
+
+allLevels = unique(train.y);
+
+for(i in 1) {
+# train.1V1x = as.data.frame(train.x)
+# dmtrain.x = data.matrix(train.x)
+# valid.1V1.x = as.data.frame(valid.x)
+# dmvalid.x = data.matrix(valid.x)
+
+train.1V1.y = train.y 
+train.1V1.y[train.y != allLevels[i]] = 'OTHER'
+train.1V1.y = data.frame(Response = factor(train.1V1.y))
+
+# train.1V1.y = as.data.frame(train.1V1.y)
+# dmtrain.1V1.y = data.matrix(train.1V1.y)
+
+valid.1V1.y = valid.y 
+valid.1V1.y[valid.y != allLevels[i]] = 'OTHER'
+# valid.1V1.y = as.data.frame(valid.1V1.y)
+# dmvalid.1V1.y = data.matrix(valid.1V1.y)
+
+
+fit.glmnet.cr <- glmnet.cr(train.x, train.1V1.y, alpha = 1)
+
+
+# plot(fit.glmnet.cr, xvar = "step", type = "bic")
+# plot(fit.glmnet.cr, xvar = "step", type = "coefficients")
+BIC.step <- select.glmnet.cr(fit.glmnet.cr)
+
+nonzero.glmnet.cr(fit.glmnet.cr, s = BIC.step)
+
+lassomulti.fitted = fitted(fit.glmnet.cr, s = BIC.step)
+
+#lassomulti.predicted = predict(fit.glmnet.cr,newx=valid.x)
+
+# confusionMatrix(factor(lassomulti.fitted$class, levels=levels(train.y)), train.y)
+# confusionMatrix(factor(lassomulti.predicted$class[,32], levels=levels(valid.y)), valid.y)
+
+}
 ```
+
+
 
 ```{r}
 # Rita - Multinomial Logit
@@ -243,7 +288,7 @@ ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
 
 ## Evaluation & Selection
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 
 ```
 
