@@ -49,7 +49,7 @@ WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
 
 
 ```{r}
-# Clean Data: Filter out variables with more than 25 factors - model matrix becomes too large
+# Clean Data: Filter out variables with more than 30 factors - model matrix becomes too large
 KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>30){FALSE} else {TRUE}})),
                     c('factorlevels'))
 KeepVars$vars = rownames(KeepVars)
@@ -103,9 +103,6 @@ z = as.factor(WaterPumps_label[,2])
 plot(x[x>10],y[x>10],col=c("green","blue","red")[z[x>10]], xlab = 'Longitude (km)', ylab = 'Latitude (km)', pch = 18, main = 'Water Pump Locations (from Lon,Lat = [0,0])')
 grid()
 legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, col = c('green','blue','red'),inset = 0.01)
-
-
-
 ```
 
 
@@ -146,7 +143,8 @@ lasso.coefs = cbind.data.frame(data.frame('Variable' = rownames(data.frame(lasso
                                data.frame("NeedsRepair"=lasso.coefs$`functional needs repair`[,1]),
                                data.frame("NonFunctional"=lasso.coefs$`non functional`[,1]))
 rownames(lasso.coefs) <- c()
-
+lasso.coefs <- cbind(lasso.coefs, 'sum'= apply(lasso.coefs[,-which(names(lasso.coefs) %in% 'Variable')],1,sum))
+varnames = as.character(lasso.coefs$Variable[lasso.coefs$sum!=0])
 ```
 
 # Multinomial Logit Model
@@ -155,6 +153,54 @@ rownames(lasso.coefs) <- c()
 # Multinomial Logit
 
 ```
+
+```{r}
+# Rita - Multinomial Logit
+#--------------------------------------------------------------------------------------------------------------
+modelmatrix_full = cbind.data.frame(modelmatrix, data.frame('status_group'=WaterPumps$status_group))
+
+# Select equal sample sizes from all three categories:
+functional.x = modelmatrix_full[modelmatrix_full$status_group=='functional',]
+needsrepair.x = modelmatrix_full[modelmatrix_full$status_group=='functional needs repair',]
+nonfunctional.x = modelmatrix_full[modelmatrix_full$status_group=='non functional',]
+
+set.seed(500)
+samplesize = sample(nrow(functional.x),4000,replace = FALSE)
+
+functional.x.train = functional.x[samplesize,]
+nonfunctional.x.train = nonfunctional.x[samplesize,]
+needsrepair.x.train = needsrepair.x[samplesize[1:2000],]
+
+functional.x.valid = functional.x[-samplesize,]
+nonfunctional.x.valid = nonfunctional.x[-samplesize,]
+needsrepair.x.valid = needsrepair.x[-samplesize[1:2000],]
+
+dmtrain.x.balanced = rbind.data.frame(functional.x.train,nonfunctional.x.train,needsrepair.x.train)
+dmvalid.x.balanced = rbind.data.frame(functional.x.valid,nonfunctional.x.valid,needsrepair.x.valid)
+
+dmtrain.x.b = as.matrix(dmtrain.x.balanced[,-which(names(dmtrain.x.balanced) %in% 'status_group')])
+dmtrain.y.b = as.factor(dmtrain.x.balanced$status_group)
+
+dmvalid.x.b = as.matrix(dmvalid.x.balanced[,-which(names(dmvalid.x.balanced) %in% 'status_group')])
+dmvalid.y.b = as.factor(dmvalid.x.balanced$status_group)
+
+fit.glmnet.cr <- glmnet.cr(dmtrain.x.b, dmtrain.y.b, alpha=1)
+
+#plot(fit.glmnet.cr, xvar = "step", type = "bic")
+#plot(fit.glmnet.cr, xvar = "step", type = "coefficients")
+BIC.step <- select.glmnet.cr(fit.glmnet.cr)
+nonzero.glmnet.cr(fit.glmnet.cr, s = BIC.step)
+lassomulti.fitted = fitted(fit.glmnet.cr, s=BIC.step)
+lassomulti.predicted = predict(fit.glmnet.cr,newx=dmvalid.x.b)
+
+minBIC = BIC.step[[1]]
+
+confusionMatrix(factor(lassomulti.fitted$class, levels=levels(dmtrain.y.b)), dmtrain.y.b)
+confusionMatrix(factor(lassomulti.predicted$class[,minBIC], levels=levels(dmvalid.y.b)), dmvalid.y.b)
+```
+
+BIC is minimized at step `r BIC.step[[1]]`
+
 
 # Random Forest 
 
@@ -168,6 +214,7 @@ varImpPlot(RandomForest.mod)
 # Prediction error in the training data set
 rf.fitted = predict(RandomForest.mod, WaterPumps[train,])
 ConfTrainRF = confusionMatrix(rf.fitted, train.y)
+
 # Prediction error in the validation dataset
 rf.predicted = predict(RandomForest.mod, WaterPumps[valid,])
 ConfValidRF = confusionMatrix(rf.predicted, valid.y)
