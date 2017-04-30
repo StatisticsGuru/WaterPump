@@ -274,14 +274,17 @@ ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
 ## XGBoost
 XGBoost algorithm is one of the popular winning recipe of data science competitions. It has linear model solver as well as tree learning algorithm. We thought it would be a great way to learn and compare traditional algorithms with recently developed ones. 
 ```{r}
-xgboost.data = WaterPumps[,c('amount_tsh','gps_height','longitude','latitude','basin','region_code','district_code','population','public_meeting','scheme_management','permit','construction_year','extraction_type_class','management_group','payment_type','quality_group','quantity_group','source_class','waterpoint_type_group')]
+features = c('amount_tsh','gps_height','longitude','latitude','basin','region_code','district_code','population','public_meeting','scheme_management','permit','construction_year','extraction_type_class','management_group','payment_type','quality_group','quantity_group','source_class','waterpoint_type_group')
+
+xgboost.data = WaterPumps[,features]
 
 xgboost.data['response'] = as.numeric(WaterPumps$status_group) - 1
 xgboost.modelmatrix = model.matrix(response~., xgboost.data)[,-1]
 xgboost.train.x = xgboost.modelmatrix[train,]
-xgboost.valid.x = xgboost.modelmatrix[valid,]
 xgboost.train.y = xgboost.data$response[train]
-xgboost.valid.y = xgboost.data$response[valid]
+
+xgboost.test.x = xgboost.modelmatrix[-train,]
+xgboost.test.y = xgboost.data$response[-train]
 
 no_of_classes = length(unique(xgboost.data$response))
 xgb_params = list("objective" = "multi:softprob",
@@ -291,6 +294,7 @@ nround    = 50
 cv.nfold  = 5
 
 train_matrix = xgb.DMatrix(data = xgboost.train.x, label = xgboost.train.y)
+test_matrix  = xgb.DMatrix(data = xgboost.test.x, label = xgboost.test.y)
 
 cv_model = xgb.cv(params = xgb_params,
                    data = train_matrix, 
@@ -301,6 +305,21 @@ cv_model = xgb.cv(params = xgb_params,
 train_prediction = data.frame(cv_model$pred) %>% mutate(max_prob = max.col(., ties.method = "last"), label = xgboost.data[train,]$response + 1)
 
 confusionMatrix(factor(train_prediction$label), factor(train_prediction$max_prob), mode = "everything")
+
+bst_model <- xgb.train(params = xgb_params, data = train_matrix, nrounds = nround)
+# Predict hold-out test set
+test_pred <- predict(bst_model, newdata = test_matrix)
+test_prediction <- matrix(test_pred, nrow = no_of_classes, ncol=length(test_pred)/no_of_classes) %>% t() %>% data.frame() %>%
+  mutate(label = xgboost.data[-train,]$response + 1,max_prob = max.col(., "last"))
+
+# confusion matrix of test set
+confusionMatrix(factor(test_prediction$label),
+                factor(test_prediction$max_prob),
+                mode = "everything")
+
+importance_matrix = xgb.importance(feature_names = features, model = bst_model)
+gp = xgb.plot.importance(importance_matrix)
+print(gp) 
 ```
 ## Evaluation & Selection
 
