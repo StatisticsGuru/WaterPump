@@ -48,7 +48,7 @@ WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
 #Create New Variables:
 WaterPumps$WellAge = as.numeric(str_sub(WaterPumps$date_recorded,1,4))-WaterPumps$construction_year
 # Remove all WellAges that are negative or where Construction Year is missing
-WaterPumps$WellAge = ifelse(WaterPumps$WellAge>100|WaterPumps$WellAge<0, NA, WaterPumps$WellAge)
+# WaterPumps$WellAge = ifelse(WaterPumps$WellAge>100|WaterPumps$WellAge<0, NA, WaterPumps$WellAge)
 #Flag all instances where installer differs from funder
 WaterPumps$funderinstaller <- ifelse(WaterPumps$funder==WaterPumps$installer, TRUE,FALSE)
 ```
@@ -131,9 +131,12 @@ rownames(lasso.coefs) <- c()
 
 ```{r}
 # Random Forest 
+set.seed(500)
 WaterPumps[sapply(WaterPumps, is.character)] <- lapply(WaterPumps[, which(sapply(WaterPumps, is.character))], as.factor)
-RandomForest.mod = randomForest(status_group~., data=WaterPumps[train,], importance=TRUE)
-
+RandomForest.mod = randomForest(status_group~., data=WaterPumps[train,], importance=TRUE, ntree=100)
+importance(RandomForest.mod)
+varImpPlot(RandomForest.mod)
+fitted = predict(RandomForest.mod, WaterPumps[train,])
 ```
 
 ## Modeling
