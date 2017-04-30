@@ -15,7 +15,7 @@ More information about the challenge and the dataset can be found here - https:/
 **MORE METADATA TO FOLLOW**
 ```{r}
 #Libraries
-library_list = list('ggplot2','glmnet','ggmap','reshape2', 'tree')
+library_list = list('ggplot2','glmnet','ggmap','reshape2', 'tree', 'stringr')
 lapply(library_list, require, character.only = TRUE)
 ```
 
@@ -53,7 +53,7 @@ WaterPumps$WellAge = ifelse(WaterPumps$WellAge>100|WaterPumps$WellAge<0, NA, Wat
 WaterPumps$funderinstaller <- ifelse(WaterPumps$funder==WaterPumps$installer, TRUE,FALSE)
 ```
 
-Steven Was Here
+
 ```{r}
 # Clean Data: Filter out variables with more than 25 factors - model matrix becomes too large
 KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>25){FALSE} else {TRUE}})),
@@ -88,6 +88,32 @@ Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
   ggtitle('Number of Pumps by Status by Region')
 Tanzania_Map
 ```
+
+```{r}
+# Water Pump Position Plot
+
+# Convert Latitude/Longitude to kilometers. 
+#  - Use 1862 meters per nautical mile (nmi).
+#  - Uses 60 nmi per degree of latitude
+#  - Uses 60 nmi per degree of longitude (at the equator)
+#  - Assumes spherical earth (for logitudes above and below the equator)
+
+# Convert lat long to xy 
+x = 1.862 * 60 * cos(WaterPumps$latitude*pi/180)*(WaterPumps$longitude)
+y = 1.862 * 60 *(WaterPumps$latitude)
+
+# Get Water Pump Operational State
+z = as.factor(WaterPumps_label[,2])
+
+# Plot Water pump Locations, color coded by OPerational state.  Use [x>10] indexing to elimninate bogus zeroed data entries.
+plot(x[x>10],y[x>10],col=c("green","blue","red")[z[x>10]], xlab = 'Longitude (km)', ylab = 'Latitude (km)', pch = 18, main = 'Water Pump Locations (from Lon,Lat = [0,0])')
+grid()
+legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, col = c('green','blue','red'),inset = 0.01)
+
+
+
+```
+
 
 ## Variable Selection
 
