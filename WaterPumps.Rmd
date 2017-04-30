@@ -13,7 +13,7 @@ A smart understanding of which waterpoints will fail can improve maintenance ope
 More information about the challenge and the dataset can be found here - https://www.drivendata.org/competitions/7/pump-it-up-data-mining-the-water-table/page/23/
 
 **MORE METADATA TO FOLLOW**
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 #Libraries
 library_list = list('ggplot2','glmnet','ggmap','reshape2', 'tree', 'stringr')
 lapply(library_list, require, character.only = TRUE)
@@ -21,7 +21,7 @@ lapply(library_list, require, character.only = TRUE)
 
 ## Import Data
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Define train_values_url
 train_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/4910797b-ee55-40a7-8668-10efd5c1b960.csv"
 WaterPumps_value = read.csv(train_values_url, header=TRUE, stringsAsFactors = FALSE)
@@ -34,7 +34,7 @@ test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68
 
 ## Data Cleaning:
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 #Merge into a single datset
 WaterPumps = merge(WaterPumps_value, WaterPumps_label, by='id')
 
@@ -54,7 +54,7 @@ WaterPumps$funderinstaller <- ifelse(WaterPumps$funder==WaterPumps$installer, TR
 ```
 
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Clean Data: Filter out variables with more than 25 factors - model matrix becomes too large
 KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>25){FALSE} else {TRUE}})),
                     c('factorlevels'))
@@ -64,7 +64,7 @@ WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepV
 
 ## Exploratory Analysis: Visualizations  *ADD VISUALIZATIONS YOU LIKE TO THIS SECTION - WE WILL SELECT THE ONES WE LIKE AT THE END*
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
                                 setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
@@ -89,7 +89,7 @@ Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
 Tanzania_Map
 ```
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Water Pump Position Plot
 
 # Convert Latitude/Longitude to kilometers. 
@@ -117,7 +117,7 @@ legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, 
 
 ## Variable Selection
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Take Only Non-Missing Values
 WaterPumps <- WaterPumps[complete.cases(WaterPumps),]
 
@@ -136,7 +136,7 @@ train.y = WaterPumps$status_group[train]
 valid.y = WaterPumps$status_group[valid]
 ```
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # LASSO
 grid = 10^seq(10,-2, length=100)
 set.seed(500)
@@ -151,13 +151,13 @@ minlambda = lasso.cv.out$lambda.min
 
 ## Modeling
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 
 ```
 
 ## Evaluation & Selection
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 
 ```
 
