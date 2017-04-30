@@ -13,7 +13,7 @@ A smart understanding of which waterpoints will fail can improve maintenance ope
 More information about the challenge and the dataset can be found here - https://www.drivendata.org/competitions/7/pump-it-up-data-mining-the-water-table/page/23/
 
 **MORE METADATA TO FOLLOW**
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 #Libraries
 library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','glmnetcr', 'knitr', 'xgboost')
 lapply(library_list, require, character.only = TRUE)
@@ -21,7 +21,7 @@ lapply(library_list, require, character.only = TRUE)
 
 ## Import Data
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Define train_values_url
 train_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/4910797b-ee55-40a7-8668-10efd5c1b960.csv"
 WaterPumps_value = read.csv(train_values_url, header=TRUE, stringsAsFactors = FALSE)
@@ -34,7 +34,7 @@ test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68
 
 ## Data Cleaning:
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 #Merge into a single datset
 WaterPumps = merge(WaterPumps_value, WaterPumps_label, by='id')
 
@@ -63,21 +63,21 @@ library(ggplot2)
 par(mfrow=c(2,3))
 qplot(quantity, data=WaterPumps, geom="bar", fill=status_group) +   theme(legend.position = "top")
 qplot(quality_group, data=WaterPumps, geom="bar", fill=status_group) +  theme(legend.position = "top")
-qplot(waterpoint_type, data=WaterPumps, geom="bar", fill=status_group) + 
-  theme(legend.position = "top") + 
+qplot(waterpoint_type, data=WaterPumps, geom="bar", fill=status_group) +
+  theme(legend.position = "top") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0))
-qplot(region, data=WaterPumps, geom="bar", fill=status_group) + 
-  theme(legend.position = "top") + 
+qplot(region, data=WaterPumps, geom="bar", fill=status_group) +
+  theme(legend.position = "top") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0))
-qplot(extraction_type_group, data=WaterPumps, geom="bar", fill=status_group) + 
-  theme(legend.position = "top") + 
+qplot(extraction_type_group, data=WaterPumps, geom="bar", fill=status_group) +
+  theme(legend.position = "top") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0))
-qplot(source_type, data=WaterPumps, geom="bar", fill=status_group) + 
-  theme(legend.position = "top") + 
+qplot(source_type, data=WaterPumps, geom="bar", fill=status_group) +
+  theme(legend.position = "top") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0))
 
 ggplot(subset(WaterPumps, construction_year > 0), aes(x = construction_year)) +
-  geom_histogram(bins = 20) + 
+  geom_histogram(bins = 20) +
   facet_grid( ~ status_group)
 
 
@@ -154,13 +154,10 @@ valid.y = WaterPumps$status_group[valid]
 ```
 
 ```{r}
-library(glmnet)
-library(glmnetcr)
 # LASSO
 grid = 10^seq(10,-2, length=100)
 set.seed(500)
 lasso.mod = glmnet(train.x, train.y, alpha=1, lambda=grid, family = 'multinomial')
-
 
 # Cross-Validate to Find Best Lambda
 lasso.cv.out = cv.glmnet(train.x,train.y,alpha=1,lambda=grid, family = 'multinomial')
@@ -176,12 +173,25 @@ lasso.coefs <- cbind(lasso.coefs, 'sum'= apply(lasso.coefs[,-which(names(lasso.c
 varnames = as.character(lasso.coefs$Variable[lasso.coefs$sum!=0])
 ```
 
-# Multinomial Logit Model
+## Binary Outcome Lasso
 
-```{r}
-# Multinomial Logit
-
+```{r, echo = TRUE, eval = TRUE}
+# Binary Outcome Lasso
+train.df = cbind.data.frame(train.x, data.frame('status_group'=train.y))
+for (each in levels(train.y)){
+temp.y = train.y
+levels(temp.y) = list(other=c(levels(train.y)[!levels(train.y) %in% each]),selected=each)
+# Fit LASSO
+fit.lasso = glmnet(train.x, temp.y, alpha=1, family = 'binomial')
+# Cross-Validate to Find Best Lambda
+lasso.cv.out = cv.glmnet(train.x,temp.y,alpha=1,family = 'binomial')
+minlambda = lasso.cv.out$lambda.min
+fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='class')
+print(confusionMatrix(fitted, temp.y))
+}
 ```
+
+## Multinomial Logit Model
 
 ```{r}
 # Rita - Multinomial Logit
@@ -231,7 +241,7 @@ confusionMatrix(factor(lassomulti.predicted$class[,minBIC], levels=levels(dmvali
 BIC is minimized at step `r BIC.step[[1]]`
 
 
-# Random Forest 
+## Random Forest
 
 ```{r}
 # Random Forest 
@@ -247,12 +257,11 @@ ConfTrainRF = confusionMatrix(rf.fitted, train.y)
 # Prediction error in the validation dataset
 rf.predicted = predict(RandomForest.mod, WaterPumps[valid,])
 ConfValidRF = confusionMatrix(rf.predicted, valid.y)
-
 ```
 
 From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(ConfValid$overall["Accuracy"][[1]],3)*100`%. 
 
-# Random Forest with Boosting 
+## Random Forest with Boosting
 
 ```{r}
 set.seed(500)
@@ -272,7 +281,7 @@ ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
 ```
 
 ## XGBoost
-XGBoost algorithm is one of the popular winning recipe of data science competitions. It has linear model solver as well as tree learning algorithm. We thought it would be a great way to learn and compare traditional algorithms with recently developed ones. 
+XGBoost algorithm is one of the popular winning recipe of data science competitions. It has linear model solver as well as tree learning algorithm. We thought it would be a great way to learn and compare traditional algorithms with recently developed ones.
 ```{r}
 features = c('amount_tsh','gps_height','longitude','latitude','basin','region_code','district_code','population','public_meeting','scheme_management','permit','construction_year','extraction_type_class','management_group','payment_type','quality_group','quantity_group','source_class','waterpoint_type_group')
 
@@ -290,14 +299,14 @@ no_of_classes = length(unique(xgboost.data$response))
 xgb_params = list("objective" = "multi:softprob",
                    "eval_metric" = "mlogloss",
                    "num_class" = no_of_classes)
-nround    = 50 
+nround    = 50
 cv.nfold  = 5
 
 train_matrix = xgb.DMatrix(data = xgboost.train.x, label = xgboost.train.y)
 test_matrix  = xgb.DMatrix(data = xgboost.test.x, label = xgboost.test.y)
 
 cv_model = xgb.cv(params = xgb_params,
-                   data = train_matrix, 
+                   data = train_matrix,
                    nrounds = nround,
                    nfold = cv.nfold,
                    verbose = FALSE,
@@ -319,12 +328,20 @@ confusionMatrix(factor(test_prediction$label),
 
 importance_matrix = xgb.importance(feature_names = features, model = bst_model)
 gp = xgb.plot.importance(importance_matrix)
-print(gp) 
+print(gp)
 ```
 ## Evaluation & Selection
 
-```{r}
-
+```{r, echo = TRUE, eval = TRUE}
+### Include model comparison figures here
 ```
+
+## Conclusion
+
+Based on the results above, random forest returns the best predictions.
+
+
+
+
 
 
