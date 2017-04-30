@@ -15,7 +15,7 @@ More information about the challenge and the dataset can be found here - https:/
 **MORE METADATA TO FOLLOW**
 ```{r}
 #Libraries
-library_list = list('ggplot2','glmnet','ggmap','reshape2', 'tree', 'stringr')
+library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','glmnetcr', 'knitr')
 lapply(library_list, require, character.only = TRUE)
 ```
 
@@ -45,18 +45,12 @@ WaterPumps[,charcols] <- sapply(WaterPumps[, charcols], function(x) gsub("[^[:al
 
 #Drop id variables - it is not a meanigful predict, just a record counter
 WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
-#Create New Variables:
-WaterPumps$WellAge = as.numeric(str_sub(WaterPumps$date_recorded,1,4))-WaterPumps$construction_year
-# Remove all WellAges that are negative or where Construction Year is missing
-WaterPumps$WellAge = ifelse(WaterPumps$WellAge>100|WaterPumps$WellAge<0, NA, WaterPumps$WellAge)
-#Flag all instances where installer differs from funder
-WaterPumps$funderinstaller <- ifelse(WaterPumps$funder==WaterPumps$installer, TRUE,FALSE)
 ```
 
 
 ```{r}
 # Clean Data: Filter out variables with more than 25 factors - model matrix becomes too large
-KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>25){FALSE} else {TRUE}})),
+KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>30){FALSE} else {TRUE}})),
                     c('factorlevels'))
 KeepVars$vars = rownames(KeepVars)
 WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepVars$factorlevels==FALSE)])]
@@ -145,14 +139,59 @@ lasso.mod = glmnet(train.x, train.y, alpha=1, lambda=grid, family = 'multinomial
 # Cross-Validate to Find Best Lambda
 lasso.cv.out = cv.glmnet(train.x,train.y,alpha=1,lambda=grid, family = 'multinomial')
 minlambda = lasso.cv.out$lambda.min
+lasso.coefs = predict(lasso.mod,s=minlambda,type="coefficients")
 
-# Random Forest 
+lasso.coefs = cbind.data.frame(data.frame('Variable' = rownames(data.frame(lasso.coefs$functional[,1]))),
+                               data.frame("Functional"=lasso.coefs$functional[,1]),
+                               data.frame("NeedsRepair"=lasso.coefs$`functional needs repair`[,1]),
+                               data.frame("NonFunctional"=lasso.coefs$`non functional`[,1]))
+rownames(lasso.coefs) <- c()
+
 ```
 
-## Modeling
+# Multinomial Logit Model
 
 ```{r}
+# Multinomial Logit
 
+```
+
+# Random Forest 
+
+```{r}
+# Random Forest 
+set.seed(500)
+WaterPumps[sapply(WaterPumps, is.character)] <- lapply(WaterPumps[, which(sapply(WaterPumps, is.character))], as.factor)
+RandomForest.mod = randomForest(status_group~., data=WaterPumps[train,], importance=TRUE, ntree=100)
+#importance(RandomForest.mod)
+varImpPlot(RandomForest.mod)
+# Prediction error in the training data set
+rf.fitted = predict(RandomForest.mod, WaterPumps[train,])
+ConfTrainRF = confusionMatrix(rf.fitted, train.y)
+# Prediction error in the validation dataset
+rf.predicted = predict(RandomForest.mod, WaterPumps[valid,])
+ConfValidRF = confusionMatrix(rf.predicted, valid.y)
+```
+
+From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(ConfValid$overall["Accuracy"][[1]],3)*100`%. 
+
+# Random Forest with Boosting 
+
+```{r}
+set.seed(500)
+boost.mod=gbm(status_group~.,data=WaterPumps[train,],distribution="multinomial",n.trees=1000, interaction.depth=6, shrinkage=0.005)
+summary(boost.mod)
+# Prediction error in the training data set
+boost.fitted = predict(boost.mod, newdata=WaterPumps[train,], n.trees = 500, type='response')
+boost.fitted <- apply(boost.fitted, 1, which.max)
+boost.fitted <- as.factor(ifelse(boost.fitted==1, 'functional',ifelse(boost.fitted==2, 'functional needs repair','non functional')))
+ConfTrainBoost=confusionMatrix(boost.fitted, train.y)
+
+# Prediction error in the test data set
+boost.predicted = predict(boost.mod, newdata=WaterPumps[valid,], n.trees = 500, type='response')
+boost.predicted <- apply(boost.predicted, 1, which.max)
+boost.predicted <- as.factor(ifelse(boost.predicted==1, 'functional',ifelse(boost.predicted==2, 'functional needs repair','non functional')))
+ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
 ```
 
 ## Evaluation & Selection
