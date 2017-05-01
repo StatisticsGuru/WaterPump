@@ -58,9 +58,6 @@ WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepV
 
 ## Exploratory Analysis: Visualizations  *ADD VISUALIZATIONS YOU LIKE TO THIS SECTION - WE WILL SELECT THE ONES WE LIKE AT THE END*
 ```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
-library(ggplot2)
-
-par(mfrow=c(2,3))
 qplot(quantity, data=WaterPumps, geom="bar", fill=status_group) +   theme(legend.position = "top")
 qplot(quality_group, data=WaterPumps, geom="bar", fill=status_group) +  theme(legend.position = "top")
 qplot(waterpoint_type, data=WaterPumps, geom="bar", fill=status_group) +
@@ -75,14 +72,9 @@ qplot(extraction_type_group, data=WaterPumps, geom="bar", fill=status_group) +
 qplot(source_type, data=WaterPumps, geom="bar", fill=status_group) +
   theme(legend.position = "top") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0))
-
 ggplot(subset(WaterPumps, construction_year > 0), aes(x = construction_year)) +
   geom_histogram(bins = 20) +
   facet_grid( ~ status_group)
-
-
-
-
 ```
 ```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 ## Aggregate waterpump count by region
@@ -259,7 +251,7 @@ rf.predicted = predict(RandomForest.mod, WaterPumps[valid,])
 ConfValidRF = confusionMatrix(rf.predicted, valid.y)
 ```
 
-From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(ConfValid$overall["Accuracy"][[1]],3)*100`%. 
+From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrainRF$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(ConfTrainRF$overall["Accuracy"][[1]],3)*100`%. 
 
 ## Random Forest with Boosting
 
@@ -283,7 +275,12 @@ ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
 ## XGBoost
 XGBoost algorithm is one of the popular winning recipe of data science competitions. It has linear model solver as well as tree learning algorithm. We thought it would be a great way to learn and compare traditional algorithms with recently developed ones.
 ```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
+library(dplyr)
+
 features = c('amount_tsh','gps_height','longitude','latitude','basin','region_code','district_code','population','public_meeting','scheme_management','permit','construction_year','extraction_type_class','management_group','payment_type','quality_group','quantity_group','source_class','waterpoint_type_group')
+
+features = names(WaterPumps) 
+features = features[!features %in% c('status_group')]
 
 xgboost.data = WaterPumps[,features]
 
@@ -292,44 +289,71 @@ xgboost.modelmatrix = model.matrix(response~., xgboost.data)[,-1]
 xgboost.train.x = xgboost.modelmatrix[train,]
 xgboost.train.y = xgboost.data$response[train]
 
-xgboost.test.x = xgboost.modelmatrix[-train,]
-xgboost.test.y = xgboost.data$response[-train]
+xgboost.test.x = xgboost.modelmatrix[valid,]
+xgboost.test.y = xgboost.data$response[valid]
 
 no_of_classes = length(unique(xgboost.data$response))
-xgb_params = list("objective" = "multi:softprob",
-                   "eval_metric" = "mlogloss",
-                   "num_class" = no_of_classes)
-nround    = 50
-cv.nfold  = 5
-
 train_matrix = xgb.DMatrix(data = xgboost.train.x, label = xgboost.train.y)
 test_matrix  = xgb.DMatrix(data = xgboost.test.x, label = xgboost.test.y)
 
-cv_model = xgb.cv(params = xgb_params,
-                   data = train_matrix,
-                   nrounds = nround,
-                   nfold = cv.nfold,
-                   verbose = FALSE,
-                   prediction = TRUE)
-train_prediction = data.frame(cv_model$pred) %>% mutate(max_prob = max.col(., ties.method = "last"), label = xgboost.data[train,]$response + 1)
+best_param = list()
+best_seednumber = 37
+best_logloss = Inf
+best_logloss_index = 0
 
-confusionMatrix(factor(train_prediction$label), factor(train_prediction$max_prob), mode = "everything")
+for (iter in 1:3) {
+    param <- list(objective = "multi:softprob",
+          num_class = no_of_classes,
+          max_depth = sample(10:25, 1),
+          eta = runif(1, .01, .3),
+          gamma = runif(1, 0.0, 0.2), 
+          subsample = runif(1, .6, .9),
+          colsample_bytree = runif(1, .5, .8), 
+          min_child_weight = sample(1:40, 1),
+          max_delta_step = sample(1:10, 1)
+          )
+    cv.nround = 50
+    cv.nfold = 5
+    set.seed(37)
+    cv_model <- xgb.cv(data=train_matrix, params = param, nthread=6, 
+                    nfold=cv.nfold, nrounds=cv.nround,
+                    verbose = T,  early.stop.round=4, maximize=FALSE)
+    min_logloss = min(cv_model$evaluation_log[, 'test_merror_mean'])
+    min_logloss_index = which.min(unlist(cv_model$evaluation_log[, 'test_merror_mean']))
+    if (min_logloss < best_logloss) {
+        best_logloss = min_logloss
+        best_logloss_index = min_logloss_index
+        best_param = param
+    }
+}
+nround = best_logloss_index
+set.seed(37)
+cv_best_model <- xgboost(data=train_matrix, params=best_param, nrounds=1000, nthread=6)
 
-bst_model <- xgb.train(params = xgb_params, data = train_matrix, nrounds = nround)
-# Predict hold-out test set
-test_pred <- predict(bst_model, newdata = test_matrix)
-test_prediction <- matrix(test_pred, nrow = no_of_classes, ncol=length(test_pred)/no_of_classes) %>% t() %>% data.frame() %>%
-  mutate(label = xgboost.data[-train,]$response + 1,max_prob = max.col(., "last"))
+train_pred <- predict(cv_best_model, newdata = train_matrix)
 
-# confusion matrix of test set
-confusionMatrix(factor(test_prediction$label),
+train_prediction = data.frame(matrix(train_pred, ncol = no_of_classes, nrow=length(train_pred)/no_of_classes)) %>% mutate( max_prob = max.col(., "last"))
+train_prediction['label']= xgboost.data[train,]$response + 1
+
+ConfTrainXGBoost = confusionMatrix(factor(train_prediction$label), factor(train_prediction$max_prob))
+
+test_pred <- predict(cv_best_model, newdata = test_matrix)
+test_prediction <- matrix(test_pred, ncol = no_of_classes, nrow = length(test_pred)/no_of_classes) %>% t() %>% data.frame() %>%
+  mutate(label = xgboost.data[valid,]$response + 1,max_prob = max.col(., "last"))
+
+
+ConfTestXGBoost = confusionMatrix(factor(test_prediction$label),
                 factor(test_prediction$max_prob),
                 mode = "everything")
 
-importance_matrix = xgb.importance(feature_names = features, model = bst_model)
+importance_matrix = xgb.importance(feature_names = features, model = cv_best_model)
 gp = xgb.plot.importance(importance_matrix)
+
 print(gp)
 ```
+From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrainXGBoost$overall["Accuracy"][[1]],3)*100`%. 
+By contrast, in the test set, the prediction accuracy was only `r round(ConfTestXGBoost$overall["Accuracy"][[1]],3)*100`%. 
+
 ## Evaluation & Selection
 
 ```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
