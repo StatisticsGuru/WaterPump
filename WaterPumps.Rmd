@@ -21,9 +21,12 @@ The second file contains the state_group for each water pump, also indexed by pu
 
 In total, there is data for 59,400 water pumps.
 
-## Data Cleaning
-    - data modified
+## Data Cleaning  
+*Data Modification* Initially the datasets were cleaned to make them compatible with processing. Primarily this consisted of addressing missing data and special characters.  Then the predictor data was merged with the response data into a single dataset.
+
     - data excluded
+    One predictor was excluded because it was constant for all water pumps. Several other predictors were 
+    
 
 ## Variable Selection
     - Lasso to get a feel for relevant variables
@@ -84,7 +87,7 @@ charcols = which(sapply(WaterPumps,is.character))
 WaterPumps[,charcols] <- sapply(WaterPumps[,charcols], toupper)
 WaterPumps[,charcols] <- sapply(WaterPumps[, charcols], function(x) gsub("[^[:alnum:]=\\.]",'',x))
 
-#Drop id variables - it is not a meanigful predict, just a record counter
+#Drop id variables - it is not a meaningful predict, just a record counter
 WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
 ```
 
