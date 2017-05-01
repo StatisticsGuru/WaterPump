@@ -15,7 +15,7 @@ A smart understanding of which waterpoints will fail can improve maintenance ope
 More information about the challenge and the dataset can be found here - https://www.drivendata.org/competitions/7/pump-it-up-data-mining-the-water-table/page/23/
 
 ## About the Dataset
-The datasets for this project were downloaded from www.drivendata.org and consisted of a two files of comma separated format.  This first file contains 40 characteristic data of each water pump, indexed by a pump ID, to be used as predictors.  
+The datasets for this project were downloaded from www.drivendata.org and consisted of a two files of comma separated format.  This first file contains 40 characteristic data of each water pump, indexed by a pump ID, to be used as predictors. A list of these predictors is provided in APPENDIX A.
 
 The second file contains the state_group for each water pump, also indexed by pump ID.  The state_group is the response we are attempting to predict and indicates the condition of a water pump.  Its value can be:  Functional (F), FunctionalNeedsRepair (FNR), or NonFunctional(NF).  
 
@@ -24,13 +24,22 @@ In total, there is data for 59,400 water pumps.
 ## Data Cleaning  
 *Data Modification* Initially the datasets were cleaned to make them compatible with processing. Primarily this consisted of addressing missing data and special characters.  Then the predictor data was merged with the response data into a single dataset.
 
-    - data excluded
-    One predictor was excluded because it was constant for all water pumps. Several other predictors were 
-    
+*Data Excluded* Following the merge, the pump ID was elimianted as it is not a meaningful predictor.  One predictor, **recorded_by** was excluded because it was constant for all water pumps. Several other cartegorical predictors were eliminated for having an excessive number of (greater than 30) levels.  A list of these factor variables, and their associated number of levels, is available in APPENDIX B. This step was needed when Lasso was used.  This because Lasso requires the inputs to be of type *model.matrix*.  A model matrix creates a separate column of data for each level of each factor variable.  This has a detrimental impact on both memory requirements and processing speed.  In this case, the retention of all such factor variables exceeded the capacity of the R software.  Further, it is a reasonable assumption that if a large proportion of the data is spread across many nomial factor levels, that factor variable will have diminished predictive power.   
 
-## Variable Selection
-    - Lasso to get a feel for relevant variables
-    - spatial plotting (2 kinds) to get a deel for spatial data
+For model types based on Random Forest, however, no such model matrix was required.  As such, for these approaches a separate dataset containing these variables was retained.
+
+
+## Data Exploration
+Prior to model fitting, some effort was invested in understanding the content of the data.  Various hypotheses were made and then evaluated through a number of simple, ad hoc analyses.
+
+One such analysis was a data visualization where the frequency of the three **state_groups**, for each **region**, was plotted at the center of the respctive region on a map of Tanzania.  This provide an understanding of how the regions were dispersed throughout the country, an indication of how many water pumps were contained in each region, and quick assessment of whether each **region** had similar proportions of F, FNR, and NF water pumps.
+
+From this map we observe that the distribution of the **regions** show no clear geometric pattern.  Further, likely due to differing sizes and populations, there is a lot of variability in the number of water pumps per **region**. Finally, it seems that if anything can be gleaned from the frequency data, it is that districts with the fewest water pumps might have a larger number that are NF.  However, this requires further study.
+
+
+Given its ability as a variable selector, Lasso fitting was employed as a means of assessing the which variables had the largest impact on the response. This ultimately allowed for a subset of relevant variables to be used in future fittings. A list of the variables identified relevant is provided in APPENDIX C.
+
+    - 
     - Random Forest and Binomial Lasso perform variable selection
     
 ## Fit Approaches
@@ -41,7 +50,6 @@ In total, there is data for 59,400 water pumps.
     - description of each approach
     
     Binary Lasso Model (using One vs One)
-    Multinomial Logit Model
     Random Forest
     Random Forest with Boosting 
     
