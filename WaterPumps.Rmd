@@ -186,7 +186,8 @@ for (k in 1 : length(valid.y)) {
     bestCat[k] = LevelName[which.max(probOfFit[k,])]
 }
 
-
+t = table(factor(bestCat),valid.y)
+accuracy = sum(t[c(1,4,9)])/sum(t)
 
 
 ```
