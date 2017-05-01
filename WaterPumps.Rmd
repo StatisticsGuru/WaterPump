@@ -62,8 +62,8 @@ WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepV
 ```{r, echo = TRUE, eval = TRUE}
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
-                                setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
-                                 function(x) as.numeric(geocode(x)))))), c('longitude','latitude')))
+                                     setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
+                                                                             function(x) as.numeric(geocode(x)))))), c('longitude','latitude')))
 
 #Drop Row Names
 rownames(regional_geocodes) <- c()
@@ -74,13 +74,13 @@ colnames(PumpsByRegion)=c("region", "functional","needsrepair", "nonfunctional",
 
 Tanzania = as.numeric(geocode("Tanzania"))
 Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
-  geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='blue', alpha=0.4,
-             size=PumpsByRegion$functional*0.01)+
-  geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='orange', alpha=0.4,
-             size=PumpsByRegion$needsrepair*0.01)+
-  geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='red', alpha=0.4,
-             size=PumpsByRegion$nonfunctional*0.01)+
-  ggtitle('Number of Pumps by Status by Region')
+    geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='blue', alpha=0.4,
+               size=PumpsByRegion$functional*0.01)+
+    geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='orange', alpha=0.4,
+               size=PumpsByRegion$needsrepair*0.01)+
+    geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='red', alpha=0.4,
+               size=PumpsByRegion$nonfunctional*0.01)+
+    ggtitle('Number of Pumps by Status by Region')
 Tanzania_Map
 ```
 
@@ -151,23 +151,49 @@ varnames = as.character(lasso.coefs$Variable[lasso.coefs$sum!=0])
 
 ```{r, echo = TRUE, eval = TRUE}
 # Binary Outcome Lasso 
+
+temp = rep(0,length(valid.y))
+probOfFit = data.frame(model1 = temp,
+                       model2 = temp,
+                       model3 = temp)
+LevelName = ''
 train.df = cbind.data.frame(train.x, data.frame('status_group'=train.y))
+i = 0
+
+# Build a model for Each Level and record its predictions
 for (each in levels(train.y)){
-temp.y = train.y
-levels(temp.y) = list(other=c(levels(train.y)[!levels(train.y) %in% each]),selected=each)
-# Fit LASSO
-fit.lasso = glmnet(train.x, temp.y, alpha=1, family = 'binomial')
-# Cross-Validate to Find Best Lambda
-lasso.cv.out = cv.glmnet(train.x,temp.y,alpha=1,family = 'binomial')
-minlambda = lasso.cv.out$lambda.min
-fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='class')
-print(confusionMatrix(fitted, temp.y))
+    i = i + 1
+    LevelName[i] = each
+    temp.y = train.y
+    levels(temp.y) = list(other=c(levels(train.y)[!levels(train.y) %in% each]),selected=each)
+    
+    # Fit LASSO
+    fit.lasso = glmnet(train.x, temp.y, alpha=1, family = 'binomial')
+    
+    # Cross-Validate to Find Best Lambda
+    lasso.cv.out = cv.glmnet(train.x,temp.y,alpha=1,family = 'binomial')
+    minlambda = lasso.cv.out$lambda.min
+    
+    # fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='class')
+    probOfFit[,i] = predict(fit.lasso, newx=valid.x, s=minlambda,                                 type = 'response')
+    
+    # t = table(fitted, temp.y)
 }
+
+bestCat = rep('other',length(valid.y))
+
+for (k in 1 : length(valid.y)) {
+    bestCat[k] = LevelName[which.max(probOfFit[k,])]
+}
+
+
+
+
 ```
 
 ## Multinomial Logit Model
 
- 
+
 
 
 
