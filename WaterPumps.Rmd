@@ -48,7 +48,6 @@ WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
 ```
 
 
-
 ```{r}
 # Clean Data: Filter out variables with more than 30 factors - model matrix becomes too large
 KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>30){FALSE} else {TRUE}})),
@@ -160,9 +159,33 @@ fit.lasso = glmnet(train.x, temp.y, alpha=1, family = 'binomial')
 # Cross-Validate to Find Best Lambda
 lasso.cv.out = cv.glmnet(train.x,temp.y,alpha=1,family = 'binomial')
 minlambda = lasso.cv.out$lambda.min
-fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='class')
-print(confusionMatrix(fitted, temp.y))
+
+fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='response')
+predict = predict(fit.lasso, newx=valid.x, s=minlambda, type='response')
+
+assign(paste0('fitted_', nchar(each)), fitted)
+assign(paste0('predict_', nchar(each)), predict)
+#print(confusionMatrix(fitted, temp.y))
 }
+
+results_train = data.frame('functional'=fitted_10[,1],
+                     'needsrepair'=fitted_23[,1],
+                      'nonfunctional'= fitted_14[,1])
+
+results_valid = data.frame('functional'=predict_10[,1],
+                     'needsrepair'=predict_23[,1],
+                      'nonfunctional'= predict_14[,1])
+
+results_train$classification = NA
+results_train$classification = ifelse(results_train$functional>=0.5, 'functional', 
+                                ifelse(results_train$nonfunctional>=0.5, 'non functional','functional needs repair'))
+confusionMatrix(results_train$classification, train.y)
+
+
+results_valid$classification = NA
+results_valid$classification = ifelse(results_valid$functional>=0.5, 'functional', 
+                                ifelse(results_valid$nonfunctional>=0.5, 'non functional','functional needs repair'))
+confusionMatrix(results_valid$classification, valid.y)
 ```
 
 ## Multinomial Logit Model
@@ -172,7 +195,7 @@ print(confusionMatrix(fitted, temp.y))
 #--------------------------------------------------------------------------------------------------------------
 modelmatrix_full = cbind.data.frame(modelmatrix, data.frame('status_group'=WaterPumps$status_group))
 
-# Select equal sample sizes from all three categories:
+# Select balanced
 functional.x = modelmatrix_full[modelmatrix_full$status_group=='functional',]
 needsrepair.x = modelmatrix_full[modelmatrix_full$status_group=='functional needs repair',]
 nonfunctional.x = modelmatrix_full[modelmatrix_full$status_group=='non functional',]
@@ -180,36 +203,28 @@ nonfunctional.x = modelmatrix_full[modelmatrix_full$status_group=='non functiona
 set.seed(500)
 samplesize = sample(nrow(functional.x),4000,replace = FALSE)
 
-functional.x.train = functional.x[samplesize,]
-nonfunctional.x.train = nonfunctional.x[samplesize,]
-needsrepair.x.train = needsrepair.x[samplesize[1:2000],]
+train.x.balanced = rbind.data.frame(functional.x[samplesize,],nonfunctional.x[-samplesize,],needsrepair.x[-samplesize[1:2000],])
+valid.x.balanced = rbind.data.frame(functional.x[-samplesize,],nonfunctional.x[-samplesize,],needsrepair.x[-samplesize[1:2000],])
 
-functional.x.valid = functional.x[-samplesize,]
-nonfunctional.x.valid = nonfunctional.x[-samplesize,]
-needsrepair.x.valid = needsrepair.x[-samplesize[1:2000],]
+train.x.b = as.matrix(train.x.balanced[,-which(names(train.x.balanced) %in% 'status_group')])
+train.y.b = as.factor(train.x.balanced$status_group)
 
-dmtrain.x.balanced = rbind.data.frame(functional.x.train,nonfunctional.x.train,needsrepair.x.train)
-dmvalid.x.balanced = rbind.data.frame(functional.x.valid,nonfunctional.x.valid,needsrepair.x.valid)
+valid.x.b = as.matrix(valid.x.balanced[,-which(names(valid.x.balanced) %in% 'status_group')])
+valid.y.b = as.factor(valid.x.balanced$status_group)
 
-dmtrain.x.b = as.matrix(dmtrain.x.balanced[,-which(names(dmtrain.x.balanced) %in% 'status_group')])
-dmtrain.y.b = as.factor(dmtrain.x.balanced$status_group)
-
-dmvalid.x.b = as.matrix(dmvalid.x.balanced[,-which(names(dmvalid.x.balanced) %in% 'status_group')])
-dmvalid.y.b = as.factor(dmvalid.x.balanced$status_group)
-
-fit.glmnet.cr <- glmnet.cr(dmtrain.x.b, dmtrain.y.b, alpha=1)
+fit.glmnet.cr <- glmnet.cr(train.x.b, train.y.b, alpha=1)
 
 #plot(fit.glmnet.cr, xvar = "step", type = "bic")
 #plot(fit.glmnet.cr, xvar = "step", type = "coefficients")
 BIC.step <- select.glmnet.cr(fit.glmnet.cr)
-nonzero.glmnet.cr(fit.glmnet.cr, s = BIC.step)
+#nonzero.glmnet.cr(fit.glmnet.cr, s = BIC.step)
 lassomulti.fitted = fitted(fit.glmnet.cr, s=BIC.step)
-lassomulti.predicted = predict(fit.glmnet.cr,newx=dmvalid.x.b)
+lassomulti.predicted = predict(fit.glmnet.cr,newx=valid.x.b)
 
 minBIC = BIC.step[[1]]
 
-confusionMatrix(factor(lassomulti.fitted$class, levels=levels(dmtrain.y.b)), dmtrain.y.b)
-confusionMatrix(factor(lassomulti.predicted$class[,minBIC], levels=levels(dmvalid.y.b)), dmvalid.y.b)
+confusionMatrix(factor(lassomulti.fitted$class, levels=levels(train.y.b)), train.y.b)
+confusionMatrix(factor(lassomulti.predicted$class[,minBIC], levels=levels(valid.y.b)), valid.y.b)
 ```
 
 BIC is minimized at step `r BIC.step[[1]]`
