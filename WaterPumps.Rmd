@@ -12,6 +12,38 @@ Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predi
 A smart understanding of which waterpoints will fail can improve maintenance operations and ensure that clean, potable water is available to communities across Tanzania.
 More information about the challenge and the dataset can be found here - https://www.drivendata.org/competitions/7/pump-it-up-data-mining-the-water-table/page/23/
 
+The datasets for this project were downloaded from www.drivendata.org and consisted of a two files of comma separated format.  This first file contains 40 characteristic data of each water pump, indexed by a pump ID, to be used as predictors.  
+
+The second file contains the state_group for each water pump, also indexed by pump ID.  The state_group is the response we are attempting to predict and indicates the condition of a water pump.  Its value can be:  Functional (F), FunctionalNeedsRepair (FNR), or NonFunctional(NF).  
+
+In total, there is data for 59,400 water pumps.
+
+## Data Cleaning
+    - data modified
+    - data excluded
+
+## Variable Selection
+    - Lasso to get a feel for relevant variables
+    - spatial plotting (2 kinds) to get a deel for spatial data
+    - Random Forest and Binomial Lasso perform variable selection
+    
+## Fit Approaches
+    - training vs validation (size, purpose, etc)
+    - Approach selection... lack of numerical data restricted what techniques could be used (nothing relying on euclidean distances)
+    - relatively few FNR points made resulted, meant prediction performance of FNR was poor with some models types.
+    - Approaches to deal with that: data balancing, one-vs-one binomial
+
+## Results
+    Confusion Tables for each of the model types
+
+## Conclusions
+    - final table with overal Accuracy for each model
+    
+
+## Appendices
+    - Spatial plots
+    - Source code
+
 **MORE METADATA TO FOLLOW**
 ```{r, echo = TRUE, eval = TRUE}
 #Libraries
