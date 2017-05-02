@@ -5,7 +5,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE, cache=TRUE)
 ```
 ## About this Project
 Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predict what could impact the state of water pumps. 
@@ -52,28 +52,17 @@ Given its ability as a variable selector, Lasso fitting was employed as a means 
     Binary Lasso Model (using One vs One)
     Random Forest
     Random Forest with Boosting 
-    
-## Results
-    Confusion Tables for each of the model types
-
-## Conclusions
-    - final table with overal Accuracy for each model
-    
-
-## Appendices
-    - Spatial plots
-    - Source code
 
 **MORE METADATA TO FOLLOW**
-```{r, echo = TRUE, eval = TRUE}
+```{r}
 #Libraries
-library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','glmnetcr', 'knitr')
+library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','knitr')
 lapply(library_list, require, character.only = TRUE)
 ```
 
 ## Import Data
 
-```{r, echo = TRUE, eval = TRUE}
+```{r}
 # Define train_values_url
 train_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/4910797b-ee55-40a7-8668-10efd5c1b960.csv"
 WaterPumps_value = read.csv(train_values_url, header=TRUE, stringsAsFactors = FALSE)
@@ -82,11 +71,12 @@ train_labels_url <- "http://s3.amazonaws.com/drivendata/data/7/public/0bf8bc6e-3
 WaterPumps_label = read.csv(train_labels_url, header=TRUE, stringsAsFactors = TRUE)
 # Define test_values_url
 test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68cd-4d1d-a0de-f5f566f76d91.csv"
+test_values = read.csv(test_values_url, header=TRUE, stringsAsFactors=TRUE)
 ```
 
 ## Data Cleaning:
 
-```{r, echo = TRUE, eval = TRUE}
+```{r}
 #Merge into a single datset
 WaterPumps = merge(WaterPumps_value, WaterPumps_label, by='id')
 
@@ -106,11 +96,14 @@ KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.ch
                     c('factorlevels'))
 KeepVars$vars = rownames(KeepVars)
 WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepVars$factorlevels==FALSE)])]
+
+# Remove Multicollinearity
+
 ```
 
-## Exploratory Analysis: Visualizations  *ADD VISUALIZATIONS YOU LIKE TO THIS SECTION - WE WILL SELECT THE ONES WE LIKE AT THE END*
+## Exploratory Analysis
 
-```{r, echo = TRUE, eval = TRUE}
+```{r}
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
                                      setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
@@ -135,7 +128,7 @@ Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
 Tanzania_Map
 ```
 
-```{r, echo = TRUE, eval = TRUE}
+```{r}
 # Water Pump Position Plot
 
 # Convert Latitude/Longitude to kilometers. 
@@ -159,7 +152,7 @@ legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, 
 
 ## Train & Validation Split
 
-```{r, echo = TRUE, eval = TRUE}
+```{r}
 # Take Only Non-Missing Values
 WaterPumps <- WaterPumps[complete.cases(WaterPumps),]
 
@@ -178,35 +171,22 @@ train.y = WaterPumps$status_group[train]
 valid.y = WaterPumps$status_group[valid]
 ```
 
-```{r, echo = TRUE, eval = TRUE}
-# LASSO
-grid = 10^seq(10,-2, length=100)
-set.seed(500)
-lasso.mod = glmnet(train.x, train.y, alpha=1, lambda=grid, family = 'multinomial')
+## Results
 
-# Cross-Validate to Find Best Lambda
-lasso.cv.out = cv.glmnet(train.x,train.y,alpha=1,lambda=grid, family = 'multinomial')
-minlambda = lasso.cv.out$lambda.min
-lasso.coefs = predict(lasso.mod,s=minlambda,type="coefficients")
+# Binary Outcome Lasso
 
-lasso.coefs = cbind.data.frame(data.frame('Variable' = rownames(data.frame(lasso.coefs$functional[,1]))),
-                               data.frame("Functional"=lasso.coefs$functional[,1]),
-                               data.frame("NeedsRepair"=lasso.coefs$`functional needs repair`[,1]),
-                               data.frame("NonFunctional"=lasso.coefs$`non functional`[,1]))
-rownames(lasso.coefs) <- c()
-lasso.coefs <- cbind(lasso.coefs, 'sum'= apply(lasso.coefs[,-which(names(lasso.coefs) %in% 'Variable')],1,sum))
-varnames = as.character(lasso.coefs$Variable[lasso.coefs$sum!=0])
-```
-
-## Binary Outcome Lasso
-
-```{r, echo = TRUE, eval = TRUE}
+```{r}
 # Binary Outcome Lasso 
-
 temp = rep(0,length(valid.y))
-probOfFit = data.frame(model1 = temp,
+Predict.Valid = data.frame(model1 = temp,
                        model2 = temp,
                        model3 = temp)
+
+temp = rep(0,length(train.y))
+Predict.Train = data.frame(model1 = temp,
+                       model2 = temp,
+                       model3 = temp)
+
 LevelName = ''
 train.df = cbind.data.frame(train.x, data.frame('status_group'=train.y))
 i = 0
@@ -227,105 +207,36 @@ for (each in levels(train.y)){
     minlambda = lasso.cv.out$lambda.min
     
     # fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='class')
-    probOfFit[,i] = predict(fit.lasso, newx=valid.x, s=minlambda, type = 'response')
-
+    Predict.Valid[,i] = predict(fit.lasso, newx=valid.x, s=minlambda, type = 'response')
+    Predict.Train[,i] = predict(fit.lasso, newx=train.x, s=minlambda, type = 'response')
 }
 
-bestCat = rep('other',length(valid.y))
+bestCatValid = rep('other',length(valid.y))
 
 for (k in 1 : length(valid.y)) {
-    bestCat[k] = LevelName[which.max(probOfFit[k,])]
+    bestCatValid[k] = LevelName[which.max(Predict.Valid[k,])]
 }
 
-t = table(factor(bestCat),valid.y)
-accuracy = sum(t[c(1,4,9)])/sum(t)
+bestCatTrain = rep('other',length(train.y))
 
+for (k in 1 : length(train.y)) {
+    bestCatTrain[k] = LevelName[which.max(Predict.Train[k,])]
+}
 
-
-#temp.y = train.y
-#levels(temp.y) = list(other=c(levels(train.y)[!levels(train.y) %in% each]),selected=each)
-# Fit LASSO
-#fit.lasso = glmnet(train.x, temp.y, alpha=1, family = 'binomial')
-# Cross-Validate to Find Best Lambda
-#lasso.cv.out = cv.glmnet(train.x,temp.y,alpha=1,family = 'binomial')
-#minlambda = lasso.cv.out$lambda.min
-
-#fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='response')
-#predict = predict(fit.lasso, newx=valid.x, s=minlambda, type='response')
-
-#assign(paste0('fitted_', nchar(each)), fitted)
-#assign(paste0('predict_', nchar(each)), predict)
-#print(confusionMatrix(fitted, temp.y))
-#}
-
-#results_train = data.frame('functional'=fitted_10[,1],
-#                     'needsrepair'=fitted_23[,1],
-#                      'nonfunctional'= fitted_14[,1])
-
-#results_valid = data.frame('functional'=predict_10[,1],
-#                     'needsrepair'=predict_23[,1],
-#                      'nonfunctional'= predict_14[,1])
-
-#results_train$classification = NA
-#results_train$classification = ifelse(results_train$functional>=0.5, 'functional', 
-#                                ifelse(results_train$nonfunctional>=0.5, 'non functional','functional needs repair'))
-#confusionMatrix(results_train$classification, train.y)
-
-
-#results_valid$classification = NA
-#results_valid$classification = ifelse(results_valid$functional>=0.5, 'functional', 
-#                                ifelse(results_valid$nonfunctional>=0.5, 'non functional','functional needs repair'))
-#confusionMatrix(results_valid$classification, valid.y)
-
+Binary.ConfTrain = confusionMatrix(bestCatTrain, train.y)
+Binary.ConfValid = confusionMatrix(bestCatValid, valid.y)
 ```
-
-## Multinomial Logit Model
-
-
-
 
 
 ```{r}
-# Rita - Multinomial Logit
-#--------------------------------------------------------------------------------------------------------------
-modelmatrix_full = cbind.data.frame(modelmatrix, data.frame('status_group'=WaterPumps$status_group))
+kable(data.frame(Binary.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+      caption = 'Training Data Performance')
 
-# Select balanced
-functional.x = modelmatrix_full[modelmatrix_full$status_group=='functional',]
-needsrepair.x = modelmatrix_full[modelmatrix_full$status_group=='functional needs repair',]
-nonfunctional.x = modelmatrix_full[modelmatrix_full$status_group=='non functional',]
-
-set.seed(500)
-samplesize = sample(nrow(functional.x),4000,replace = FALSE)
-
-train.x.balanced = rbind.data.frame(functional.x[samplesize,],nonfunctional.x[-samplesize,],needsrepair.x[-samplesize[1:2000],])
-valid.x.balanced = rbind.data.frame(functional.x[-samplesize,],nonfunctional.x[-samplesize,],needsrepair.x[-samplesize[1:2000],])
-
-train.x.b = as.matrix(train.x.balanced[,-which(names(train.x.balanced) %in% 'status_group')])
-train.y.b = as.factor(train.x.balanced$status_group)
-
-valid.x.b = as.matrix(valid.x.balanced[,-which(names(valid.x.balanced) %in% 'status_group')])
-valid.y.b = as.factor(valid.x.balanced$status_group)
-
-fit.glmnet.cr <- glmnet.cr(train.x.b, train.y.b, alpha=1)
-
-#plot(fit.glmnet.cr, xvar = "step", type = "bic")
-#plot(fit.glmnet.cr, xvar = "step", type = "coefficients")
-BIC.step <- select.glmnet.cr(fit.glmnet.cr)
-#nonzero.glmnet.cr(fit.glmnet.cr, s = BIC.step)
-lassomulti.fitted = fitted(fit.glmnet.cr, s=BIC.step)
-lassomulti.predicted = predict(fit.glmnet.cr,newx=valid.x.b)
-
-minBIC = BIC.step[[1]]
-
-confusionMatrix(factor(lassomulti.fitted$class, levels=levels(train.y.b)), train.y.b)
-confusionMatrix(factor(lassomulti.predicted$class[,minBIC], levels=levels(valid.y.b)), valid.y.b)
+kable(data.frame(Binary.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+      caption = 'Validation Data Performance')
 ```
 
-BIC is minimized at step `r BIC.step[[1]]`
-
-
-## Random Forest 
+# Random Forest 
 
 ```{r}
 # Random Forest 
@@ -336,16 +247,24 @@ RandomForest.mod = randomForest(status_group~., data=WaterPumps[train,], importa
 varImpPlot(RandomForest.mod)
 # Prediction error in the training data set
 rf.fitted = predict(RandomForest.mod, WaterPumps[train,])
-ConfTrainRF = confusionMatrix(rf.fitted, train.y)
-
+RF.ConfTrain = confusionMatrix(rf.fitted, train.y)
 # Prediction error in the validation dataset
 rf.predicted = predict(RandomForest.mod, WaterPumps[valid,])
-ConfValidRF = confusionMatrix(rf.predicted, valid.y)
+RF.ConfValid = confusionMatrix(rf.predicted, valid.y)
 ```
 
 From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(ConfValid$overall["Accuracy"][[1]],3)*100`%. 
 
-## Random Forest with Boosting 
+
+```{r}
+kable(data.frame(RF.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+      caption = 'Training Data Performance')
+
+kable(data.frame(RF.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+      caption = 'Validation Data Performance')
+```
+
+# Random Forest with Boosting 
 
 ```{r}
 set.seed(500)
@@ -355,27 +274,33 @@ summary(boost.mod)
 boost.fitted = predict(boost.mod, newdata=WaterPumps[train,], n.trees = 500, type='response')
 boost.fitted <- apply(boost.fitted, 1, which.max)
 boost.fitted <- as.factor(ifelse(boost.fitted==1, 'functional',ifelse(boost.fitted==2, 'functional needs repair','non functional')))
-ConfTrainBoost=confusionMatrix(boost.fitted, train.y)
+Boost.ConfTrain=confusionMatrix(boost.fitted, train.y)
 
 # Prediction error in the test data set
 boost.predicted = predict(boost.mod, newdata=WaterPumps[valid,], n.trees = 500, type='response')
 boost.predicted <- apply(boost.predicted, 1, which.max)
 boost.predicted <- as.factor(ifelse(boost.predicted==1, 'functional',ifelse(boost.predicted==2, 'functional needs repair','non functional')))
-ConfValidBoost=confusionMatrix(boost.predicted, valid.y)
+Boost.ConfValid=confusionMatrix(boost.predicted, valid.y)
 ```
 
-## Evaluation & Selection
+```{r}
+kable(data.frame(Boost.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+      caption = 'Training Data Performance')
 
-```{r, echo = TRUE, eval = TRUE}
-### Include model comparison figures here
+kable(data.frame(Boost.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+      caption = 'Validation Data Performance')
 ```
 
-## Conclusion
+## Conclusions
 
-Based on the results above, random forest returns the best predictions. 
+```{r}
+Accuracy = data.frame('Model' = c('Binary Outcome Lasso','Random Forest','Boosted Random Forest'),
+                      'Accuracy' = c(Binary.ConfValid$overall[['Accuracy']][[1]],RF.ConfValid$overall[['Accuracy']][[1]],
+                                     Boost.ConfValid$overall[['Accuracy']][[1]]))
+kable(Accuracy, caption = 'Model Comparison')
+```
+    
 
-
-
-
-
-
+## Appendices
+    - Spatial plots
+    - Source code
