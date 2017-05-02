@@ -30,6 +30,7 @@ train_labels_url <- "http://s3.amazonaws.com/drivendata/data/7/public/0bf8bc6e-3
 WaterPumps_label = read.csv(train_labels_url, header=TRUE, stringsAsFactors = TRUE)
 # Define test_values_url
 test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68cd-4d1d-a0de-f5f566f76d91.csv"
+WaterPumpsTest = read.csv(test_values_url, header=TRUE, stringsAsFactors = FALSE)
 ```
 
 ## Data Cleaning:
@@ -240,6 +241,7 @@ BIC is minimized at step `r BIC.step[[1]]`
 set.seed(500)
 WaterPumps[sapply(WaterPumps, is.character)] <- lapply(WaterPumps[, which(sapply(WaterPumps, is.character))], as.factor)
 RandomForest.mod = randomForest(status_group~., data=WaterPumps[train,], importance=TRUE, ntree=100)
+
 #importance(RandomForest.mod)
 varImpPlot(RandomForest.mod)
 # Prediction error in the training data set
@@ -277,47 +279,55 @@ XGBoost algorithm is one of the popular winning recipe of data science competiti
 ```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 library(dplyr)
 
-features = c('amount_tsh','gps_height','longitude','latitude','basin','region_code','district_code','population','public_meeting','scheme_management','permit','construction_year','extraction_type_class','management_group','payment_type','quality_group','quantity_group','source_class','waterpoint_type_group')
-
 features = names(WaterPumps) 
 features = features[!features %in% c('status_group')]
 
 xgboost.data = WaterPumps[,features]
 
-xgboost.data['response'] = as.numeric(WaterPumps$status_group) - 1
-xgboost.modelmatrix = model.matrix(response~., xgboost.data)[,-1]
-xgboost.train.x = xgboost.modelmatrix[train,]
-xgboost.train.y = xgboost.data$response[train]
+response = as.numeric(WaterPumps$status_group) - 1
+xgboost.modelmatrix = model.matrix(~., xgboost.data)
+xgboost.train.x = xgboost.modelmatrix[train,2:ncol(xgboost.modelmatrix)]
+xgboost.train.y = response[train]
+xgboost.valid.x = xgboost.modelmatrix[valid,2:ncol(xgboost.modelmatrix)]
+xgboost.valid.y = response[valid]
 
-xgboost.test.x = xgboost.modelmatrix[valid,]
-xgboost.test.y = xgboost.data$response[valid]
+xgboost.test.data = WaterPumpsTest[, -which(names(WaterPumpsTest) %in% c('id','recorded_by'))]
+charcols = which(sapply(xgboost.test.data,is.character))
+xgboost.test.data[,charcols] <- sapply(xgboost.test.data[,charcols], toupper)
+xgboost.test.matrix = model.matrix(~., xgboost.test.data)
+xgboost.test.x = xgboost.test.matrix[,2:ncol(xgboost.test.matrix)]
 
-no_of_classes = length(unique(xgboost.data$response))
-train_matrix = xgb.DMatrix(data = xgboost.train.x, label = xgboost.train.y)
-test_matrix  = xgb.DMatrix(data = xgboost.test.x, label = xgboost.test.y)
+no_of_classes = length(unique(response))
+
+train_matrix = xgb.DMatrix(data  = xgboost.train.x, label = xgboost.train.y)
 
 best_param = list()
-best_seednumber = 37
 best_logloss = Inf
 best_logloss_index = 0
 
-for (iter in 1:3) {
-    param <- list(objective = "multi:softprob",
+gen_params = function() {
+      param <- list(objective = "multi:softmax",
           num_class = no_of_classes,
-          max_depth = sample(10:25, 1),
-          eta = runif(1, .01, .3),
-          gamma = runif(1, 0.0, 0.2), 
-          subsample = runif(1, .6, .9),
+          max_depth = sample(7:15, 1),
+          eta = runif(1, .03, .4),
+          gamma = runif(1, 0.0, 0.3), 
+          subsample = runif(1, .5, .9),
           colsample_bytree = runif(1, .5, .8), 
-          min_child_weight = sample(1:40, 1),
+          min_child_weight = sample(1:20, 1),
           max_delta_step = sample(1:10, 1)
           )
-    cv.nround = 50
+     return(param)
+}
+
+
+for (iter in 1:10) {
+    param = gen_params()
+    str(param)
+    cv.nround = 5
     cv.nfold = 5
-    set.seed(37)
     cv_model <- xgb.cv(data=train_matrix, params = param, nthread=6, 
                     nfold=cv.nfold, nrounds=cv.nround,
-                    verbose = T,  early.stop.round=4, maximize=FALSE)
+                    verbose = F,  metrics = list('merror'))
     min_logloss = min(cv_model$evaluation_log[, 'test_merror_mean'])
     min_logloss_index = which.min(unlist(cv_model$evaluation_log[, 'test_merror_mean']))
     if (min_logloss < best_logloss) {
@@ -326,33 +336,31 @@ for (iter in 1:3) {
         best_param = param
     }
 }
-nround = best_logloss_index
-set.seed(37)
-cv_best_model <- xgboost(data=train_matrix, params=best_param, nrounds=1000, nthread=6)
 
-train_pred <- predict(cv_best_model, newdata = train_matrix)
+str(best_param)
+nround = 100
+cv_best_model <- xgboost(data=train_matrix,params=best_param, nrounds=nround, nthread=6, verbose = F)
 
-train_prediction = data.frame(matrix(train_pred, ncol = no_of_classes, nrow=length(train_pred)/no_of_classes)) %>% mutate( max_prob = max.col(., "last"))
-train_prediction['label']= xgboost.data[train,]$response + 1
+train_pred <- predict(cv_best_model, newdata = xgboost.train.x)
+train_prediction = data.frame(prediction = train_pred + 1, label = xgboost.train.y + 1)
+ConfTrainXGBoost = confusionMatrix(train_prediction$label, train_prediction$prediction)
 
-ConfTrainXGBoost = confusionMatrix(factor(train_prediction$label), factor(train_prediction$max_prob))
+valid_pred = predict(cv_best_model, newdata = xgboost.valid.x)
+valid_prediction = data.frame(prediction = valid_pred + 1, label = xgboost.valid.y + 1)
+ConfValidXGBoost = confusionMatrix(valid_prediction$label, valid_prediction$prediction)
 
-test_pred <- predict(cv_best_model, newdata = test_matrix)
-test_prediction <- matrix(test_pred, ncol = no_of_classes, nrow = length(test_pred)/no_of_classes) %>% t() %>% data.frame() %>%
-  mutate(label = xgboost.data[valid,]$response + 1,max_prob = max.col(., "last"))
-
-
-ConfTestXGBoost = confusionMatrix(factor(test_prediction$label),
-                factor(test_prediction$max_prob),
-                mode = "everything")
-
-importance_matrix = xgb.importance(feature_names = features, model = cv_best_model)
-gp = xgb.plot.importance(importance_matrix)
-
-print(gp)
+#test_pred = predict(cv_best_model, newdata = xgboost.test.x)
+#submit <- data.frame(WaterPumpsTest$id, test_pred)
+#names(submit) <- c("id", "status_group")
+#submit$status_group[submit$status_group==2] <- 'non functional'
+#submit$status_group[submit$status_group==1] <- 'functional needs repair'
+#submit$status_group[submit$status_group==0] <- 'functional'
+#write.csv(submit, file = "pump_predictions.csv",row.names=FALSE)
+#importance_matrix = xgb.importance(feature_names = features, model = cv_best_model)
+#gp = xgb.plot.importance(importance_matrix)
 ```
 From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrainXGBoost$overall["Accuracy"][[1]],3)*100`%. 
-By contrast, in the test set, the prediction accuracy was only `r round(ConfTestXGBoost$overall["Accuracy"][[1]],3)*100`%. 
+By contrast, in the test set, the prediction accuracy was only `r round(ConfValidXGBoost$overall["Accuracy"][[1]],3)*100`%. 
 
 ## Evaluation & Selection
 
@@ -363,9 +371,3 @@ By contrast, in the test set, the prediction accuracy was only `r round(ConfTest
 ## Conclusion
 
 Based on the results above, random forest returns the best predictions.
-
-
-
-
-
-
