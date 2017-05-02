@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
 ## About this Project
 Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predict what could impact the state of water pumps. 
 
-A smart understanding of which waterpoints will fail can improve maintenance operations and ensure that clean, potable water is available to communities across Tanzania.
+A smart understanding of which water pumps will fail can improve maintenance operations and ensure that clean, potable water is available to communities across Tanzania.
 
 More information about the challenge and the dataset can be found here - https://www.drivendata.org/competitions/7/pump-it-up-data-mining-the-water-table/page/23/
 
@@ -24,7 +24,7 @@ In total, there is data for 59,400 water pumps.
 ## Data Cleaning  
 *Data Modification* Initially the datasets were cleaned to make them compatible with processing. Primarily this consisted of addressing missing data and special characters.  Then the predictor data was merged with the response data into a single dataset.
 
-*Data Excluded* Following the merge, the pump ID was elimianted as it is not a meaningful predictor.  One predictor, **recorded_by** was excluded because it was constant for all water pumps. Several other cartegorical predictors were eliminated for having an excessive number of (greater than 30) levels.  A list of these factor variables, and their associated number of levels, is available in *APPENDIX B*. This step was needed when Lasso was used.  This because Lasso requires the inputs to be of type *model.matrix*.  A model matrix creates a separate column of data for each level of each factor variable.  This has a detrimental impact on both memory requirements and processing speed.  In this case, the retention of all such factor variables exceeded the capacity of the R software.  Further, it is a reasonable assumption that if a large proportion of the data is spread across many nomial factor levels, that factor variable will have diminished predictive power.   
+*Data Excluded* Following the merge, the pump ID was eliminated as it is not a meaningful predictor.  One predictor, **recorded_by** was excluded because it was constant for all water pumps. Several other categorical predictors were eliminated for having an excessive number of (greater than 30) levels.  A list of these factor variables, and their associated number of levels, is available in *APPENDIX B*. This step was needed when Lasso was used.  This because Lasso requires the inputs to be of type *model.matrix*.  A model matrix creates a separate column of data for each level of each factor variable.  This has a detrimental impact on both memory requirements and processing speed.  In this case, the retention of all such factor variables exceeded the capacity of the R software.  Further, it is a reasonable assumption that if a large proportion of the data is spread across many nominal factor levels, that factor variable will have diminished predictive power.   
 
 For model types based on Random Forest, however, no such model matrix was required.  As such, for these approaches a separate dataset containing these variables was retained.
 
@@ -32,17 +32,17 @@ For model types based on Random Forest, however, no such model matrix was requir
 ## Data Exploration
 Prior to model fitting, some effort was invested in understanding the content of the data.  Various hypotheses were made and then evaluated through a number of simple, ad hoc analyses.
 
-One such analysis was a data visualization where the frequency of the three **status_groups**, for each **region**, was plotted at the center of the respctive region on a map of Tanzania.  This provide an understanding of how the regions were dispersed throughout the country, an indication of how many water pumps were contained in each region, and quick assessment of whether each **region** had similar proportions of F, FNR, and NF water pumps.
+One such analysis was a data visualization where the frequency of the three **status_groups**, for each **region**, was plotted at the center of the respective region on a map of Tanzania.  This provide an understanding of how the regions were dispersed throughout the country, an indication of how many water pumps were contained in each region, and quick assessment of whether each **region** had similar proportions of F, FNR, and NF water pumps.
 
 From this map we observe that the distribution of the **regions** show no clear geometric pattern.  Further, likely due to differing sizes and populations, there is a lot of variability in the number of water pumps per **region**. Finally, it seems that if anything can be gleaned from the frequency data, it is that districts with the fewest water pumps might have a larger number that are NF.  For this reason a variable **regionalPumpCount** was added to the dataset.
 
 # INSERT RITA'S GEO POSITION MAP
 
-Additionally visual analysis was performed by plotting the position of each water pumps, color coded by **status_group**.  A simple spherical earth transformation allowed the water pump positions in longitude and latitude to be plotted in on a flat plane using linear units of kilometers. Given that linear units are preferrable for fitting models, these transformed postions were added to the dataset as **East_km** and **North_km**.  Because these would exhibit exceptionally high correlation with **longitude** and **latitude**, respectively, the latter variables were removed from the dataset.
+Additionally visual analysis was performed by plotting the position of each water pumps, color coded by **status_group**.  A simple spherical earth transformation allowed the water pump positions in longitude and latitude to be plotted in on a flat plane using linear units of kilometers. Given that linear units are preferable for fitting models, these transformed positions were added to the dataset as **East_km** and **North_km**.  Because these would exhibit exceptionally high correlation with **longitude** and **latitude**, respectively, the latter variables were removed from the dataset.
 
 # INSERT PUMP LOCATION MAP
 
-This plot was examined to see if there were signs of clustering among pumps of a specific **status_group**.  While it did appear that there were some areas of the country with elevated proportions NF pumps, there was no recognizeable pattern that could be leveraged for this evaluation.  A visual comparison against a mean annual rainfall map of Tanzania (avaiable on the internet), looked like it might exhibit correlation between areas with more rain and the location of all water pumps.  A similar map of Tanzania average temperatures showed a potential positive correlate between hot temperatures and NF pumps.  However, defining these relationships are beyond the scope of this effort.
+This plot was examined to see if there were signs of clustering among pumps of a specific **status_group**.  While it did appear that there were some areas of the country with elevated proportions NF pumps, there was no recognizable pattern that could be leveraged for this evaluation.  A visual comparison against a mean annual rainfall map of Tanzania (available on the internet), looked like it might exhibit correlation between areas with more rain and the location of all water pumps.  A similar map of Tanzania average temperatures showed a potential positive correlate between hot temperatures and NF pumps.  However, defining these relationships are beyond the scope of this effort.
 
 # DO WE NEED THIS IF MULTINOMIAL IS OMITTED?  DID BINOMIAL LASSO USE THIS SUBSET?
 Given its ability as a variable selector, Lasso fitting was employed as a means of assessing the which variables had the largest impact on the response. This ultimately allowed for a subset of candidate variables to be selected for future fittings. A list of the variables identified relevant is provided in *APPENDIX C*. As previously mentioned, no variable elimination was required for the Random Forest type models.
@@ -53,9 +53,9 @@ For all models, cross validation was used.  This consisted of separating the dat
     
 Given that relatively few of the variables contained numeric data, model approaches that utilize Euclidean distances between datapoints could not be used. 
 
-Because a small porportion of water pumps were of **status_group** FNR, some model types would ignore this state completely their predictions.  
+Because a small proportion of water pumps were of **status_group** FNR, some model types would ignore this state completely their predictions.  
 
-One approach for addressing this was the use of a Binary Outcome Lasso using a one-vs-one selection strategy.  With this strategy, three **sub-models** were built.  Each sub-model was assigned a level of the response variable.  The remaining two levels were given the value of **other**.  This forced the sub-model to focus on fitting only its assigned level.  The outcome of each sub-model was an estimated probability that the each datapoint belonged to the assigned level.  Each point was assessed agains these three sets of predictions.  The level with the highest probability was selected. 
+One approach for addressing this was the use of a Binary Outcome Lasso using a one-vs-one selection strategy.  With this strategy, three **sub-models** were built.  Each sub-model was assigned a level of the response variable.  The remaining two levels were given the value of **other**.  This forced the sub-model to focus on fitting only its assigned level.  The outcome of each sub-model was an estimated probability that the each datapoint belonged to the assigned level.  Each point was assessed against these three sets of predictions.  The level with the highest probability was selected. 
 
 # ARE WE RETAINING THE BALANCED DATA APPROACH -- I WILL ADD A DESCRIPTION IF WE ARE
     Binary Lasso Model (using One vs One)
@@ -66,7 +66,7 @@ Given their general suitability for datasets of this nature, Random Forest and R
     Confusion Tables for each of the model types
 
 ## Conclusions
-    - final table with overal Accuracy for each model
+    - final table with overall Accuracy for each model
 
 ## Appendix A
     - table of variables  
