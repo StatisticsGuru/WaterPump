@@ -52,6 +52,7 @@ Given its ability as a variable selector, Lasso fitting was employed as a means 
     Binary Lasso Model (using One vs One)
     Random Forest
     Random Forest with Boosting
+    XGBoost
 
 ## Results
     Confusion Tables for each of the model types
