@@ -36,8 +36,10 @@ One such analysis was a data visualization where the frequency of the three **st
 
 From this map we observe that the distribution of the **regions** show no clear geometric pattern.  Further, likely due to differing sizes and populations, there is a lot of variability in the number of water pumps per **region**. Finally, it seems that if anything can be gleaned from the frequency data, it is that districts with the fewest water pumps might have a larger number that are NF.  However, this requires further study.
 
+Additionally visual analysis was performed by plotting the position of each water pumps, color coded by **state_group**.  A simple spherical earth transformation allowed the water pumps longitude and latitude to be plotted in 
+on a flat plane with 
 
-Given its ability as a variable selector, Lasso fitting was employed as a means of assessing the which variables had the largest impact on the response. This ultimately allowed for a subset of relevant variables to be used in future fittings. A list of the variables identified relevant is provided in APPENDIX C.
+Given its ability as a variable selector, Lasso fitting was employed as a means of assessing the which variables had the largest impact on the response. This ultimately allowed for a subset of candidate variables to be selected for future fittings. A list of the variables identified relevant is provided in APPENDIX C.
 
     - 
     - Random Forest and Binomial Lasso perform variable selection
@@ -97,10 +99,31 @@ WaterPumps[,charcols] <- sapply(WaterPumps[, charcols], function(x) gsub("[^[:al
 
 #Drop id variables - it is not a meaningful predict, just a record counter
 WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
+
+
+# Convert Latitude/Longitude to kilometers. 
+#  - Uses 1862 meters per nautical mile (nmi).
+#  - Uses 60 nmi per degree of latitude
+#  - Uses 60 nmi per degree of longitude (at the equator)
+#  - Assumes a spherical earth model (for logitudes above and below the equator)
+
+# Convert lat long to xy 
+WaterPumps$East_km = 1.862 * 60 * cos(WaterPumps$latitude*pi/180)*(WaterPumps$longitude)
+WaterPumps$North_km = 1.862 * 60 *(WaterPumps$latitude)
+
+temp = rep(0, length(WaterPumps[,1]))
+regionLevels = unique(WaterPumps$region_code)
+for(i in 1 : length(regionLevels)) {
+ ind = WaterPumps$region_code == regionLevels[i]
+ temp[ind] = sum(ind)
+}
+WaterPumps$regionalPumpCount = temp
+
+
 ```
 
 
-```{r}
+```{r, echo = TRUE, eval = TRUE}
 # Clean Data: Filter out variables with more than 30 factors - model matrix becomes too large
 KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>30){FALSE} else {TRUE}})),
                     c('factorlevels'))
@@ -138,21 +161,12 @@ Tanzania_Map
 ```{r, echo = TRUE, eval = TRUE}
 # Water Pump Position Plot
 
-# Convert Latitude/Longitude to kilometers. 
-#  - Use 1862 meters per nautical mile (nmi).
-#  - Uses 60 nmi per degree of latitude
-#  - Uses 60 nmi per degree of longitude (at the equator)
-#  - Assumes spherical earth (for logitudes above and below the equator)
-
-# Convert lat long to xy 
-x = 1.862 * 60 * cos(WaterPumps$latitude*pi/180)*(WaterPumps$longitude)
-y = 1.862 * 60 *(WaterPumps$latitude)
-
 # Get Water Pump Operational State
 z = as.factor(WaterPumps_label[,2])
 
-# Plot Water pump Locations, color coded by OPerational state.  Use [x>10] indexing to elimninate bogus zeroed data entries.
-plot(x[x>10],y[x>10],col=c("green","blue","red")[z[x>10]], xlab = 'Longitude (km)', ylab = 'Latitude (km)', pch = 18, main = 'Water Pump Locations (from Lon,Lat = [0,0])')
+# Plot Water pump Locations, color coded by Operational state.  Use [x>10] indexing to elimninate bogus zeroed data entries.
+inds = WaterPumps$East_km > 20
+plot(WaterPumps$East_km[inds],WaterPumps$North_km[inds],col=c("green","blue","red")[z[inds]], xlab = 'Longitude (km)', ylab = 'Latitude (km)', pch = 18, main = 'Water Pump Locations (from Lon,Lat = [0,0])')
 grid()
 legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, col = c('green','blue','red'),inset = 0.01)
 ```
