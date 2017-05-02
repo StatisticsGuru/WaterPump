@@ -111,10 +111,76 @@ WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepV
 ```
 
 ## Exploratory Analysis: Visualizations  *ADD VISUALIZATIONS YOU LIKE TO THIS SECTION - WE WILL SELECT THE ONES WE LIKE AT THE END*
+
+### Population Vs Water Pump State
+To check how population impacts the condition on water pumps, we aggregated population by region and grouped the status of water pumps per region. 
+As as population grows, no of non functional water pumps goes down. We can clearly see need of repair increase with population. 
 ```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
+populationSum = aggregate(population~region, sum, data=WaterPumps)
+functionalByRegion =    aggregate(status_group~region, subset(WaterPumps,status_group=='functional'), function(x) length(x))
+names(functionalByRegion) <- c("region", "functional")
+nonfunctionalByRegion = aggregate(status_group~region, subset(WaterPumps,status_group=='non functional'), function(x) length(x))
+names(nonfunctionalByRegion) <- c("region", "non functional")
+repfunctionalByRegion = aggregate(status_group~region, subset(WaterPumps,status_group=='functional needs repair'), function(x) length(x))
+names(repfunctionalByRegion) <- c("region", "functional needs repair")
+regionpopstat = Reduce(function(x, y) merge(x, y,  by='region', all=TRUE), list(populationSum, functionalByRegion, nonfunctionalByRegion,repfunctionalByRegion))
+names(regionpopstat) <- c('region','population', 'functional' ,'non_functional','needs_repair')
+par(mfrow=c(1,3))
+ggplot(regionpopstat, aes(population/1000, functional)) + geom_point() + stat_smooth()
+ggplot(regionpopstat, aes(population/1000, non_functional)) + geom_point() + stat_smooth()
+ggplot(regionpopstat, aes(population/1000, needs_repair)) + geom_point() + stat_smooth()
+```
+### Waterpoint Type Vs Water Pump State
+Another important aspect to check is whether the issue is with the water delivery system or the source of water.  The following plot depicts various waterpoint types categorized by their working status. It’s clear from the plot that ‘communal standpipe’ and ‘improved spring’ water point types require more maintenance than ‘hand pump’ or ‘cattle through’. 
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
+watertype = data.frame(prop.table(table(WaterPumps$waterpoint_type_group, WaterPumps$status_group), margin = 1))
+ggplot(watertype, aes(Var1, Freq, fill = Var2)) + 
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_continuous(labels=scales::percent) +
+   labs(x="Waterpoint Type",y="%") +
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+```
+### Management Vs Water Pump State
+Who manages the system is also a good indicator to explore. It seems like management by a commercial or political entity does result in more functional water pumps. Clearly, water pumps managed by user groups are not doing so great!
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
+mgmttype = data.frame(prop.table(table(WaterPumps$management_group, WaterPumps$status_group), margin = 1))
+ggplot(mgmttype, aes(Var1, Freq, fill = Var2)) + 
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_continuous(labels=scales::percent) +
+   labs(x="Mgmt Type",y="%") +
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+```
+
+It's also important to mention how payment scheme helps in better condition of water pumps.
+```{r}
+paymenttype = data.frame(prop.table(table(WaterPumps$payment_type, WaterPumps$status_group), margin = 1))
+ggplot(paymenttype, aes(Var1, Freq, fill = Var2)) + 
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_continuous(labels=scales::percent) +
+   labs(x="Mgmt Type",y="%") +
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+```
+Here is further analysis of the water pumps which are being used for free. 
+It's not surprise that commericially operated water pumps are more non functional if they are used for free. 
+Same is the case for any other management scheme unless goverment or any political entity operates, in that case more water pumps are functional.
+```{r}
+neverpaydf = WaterPumps[WaterPumps$payment_type == 'NEVERPAY',]
+neverpaytype = data.frame(prop.table(table(neverpaydf$management_group, neverpaydf$status_group), margin = 1))
+ggplot(neverpaytype, aes(Var1, Freq, fill = Var2)) + 
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_continuous(labels=scales::percent) +
+   labs(x="Mgmt Type",y="%") +
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+```
+
+```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
+
+qplot(waterpoint_type_group, data=WaterPumps, geom="bar", fill=status_group) +
+  theme(legend.position = "top") +
+  theme(axis.text.x=element_text(angle = -20, hjust = 0))
 qplot(quantity, data=WaterPumps, geom="bar", fill=status_group) +   theme(legend.position = "top")
 qplot(quality_group, data=WaterPumps, geom="bar", fill=status_group) +  theme(legend.position = "top")
-qplot(waterpoint_type, data=WaterPumps, geom="bar", fill=status_group) +
+qplot(waterpoint_type_group, data=watertype, geom="bar", fill=status_group) +
   theme(legend.position = "top") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0))
 qplot(region, data=WaterPumps, geom="bar", fill=status_group) +
@@ -123,13 +189,14 @@ qplot(region, data=WaterPumps, geom="bar", fill=status_group) +
 qplot(extraction_type_group, data=WaterPumps, geom="bar", fill=status_group) +
   theme(legend.position = "top") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0))
-qplot(source_type, data=WaterPumps, geom="bar", fill=status_group) +
+qplot((WaterPumps$population), data=WaterPumps, geom="bar", fill=status_group) +
   theme(legend.position = "top") +
   theme(axis.text.x=element_text(angle = -20, hjust = 0))
 ggplot(subset(WaterPumps, construction_year > 0), aes(x = construction_year)) +
   geom_histogram(bins = 20) +
   facet_grid( ~ status_group)
 ```
+
 ```{r echo = TRUE, include = TRUE, messages = FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=90) }
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
