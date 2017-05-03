@@ -10,21 +10,21 @@ knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE, cache=TRUE)
 ## About this Project
 Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predict what could impact the state of water pumps. 
 
-A smart understanding of which waterpoints will fail can improve maintenance operations and ensure that clean, potable water is available to communities across Tanzania.
+A smart understanding of which water pumps will fail can improve maintenance operations and ensure that clean, potable water is available to communities across Tanzania.
 
 More information about the challenge and the dataset can be found here - https://www.drivendata.org/competitions/7/pump-it-up-data-mining-the-water-table/page/23/
 
 ## About the Dataset
-The datasets for this project were downloaded from www.drivendata.org and consisted of a two files of comma separated format.  This first file contains 40 characteristic data of each water pump, indexed by a pump ID, to be used as predictors. A list of these predictors is provided in APPENDIX A.
+The datasets for this project were downloaded from www.drivendata.org and consisted of a two files of comma separated format.  This first file contains 40 characteristic data of each water pump, indexed by a pump ID, to be used as predictors. A list of these predictors is provided in *APPENDIX A*.
 
-The second file contains the state_group for each water pump, also indexed by pump ID.  The state_group is the response we are attempting to predict and indicates the condition of a water pump.  Its value can be:  Functional (F), FunctionalNeedsRepair (FNR), or NonFunctional(NF).  
+The second file contains the status_group for each water pump, also indexed by pump ID.  The status_group is the response we are attempting to predict and indicates the condition of a water pump.  Its value can be:  Functional (F), FunctionalNeedsRepair (FNR), or NonFunctional(NF).  The respective percentages of each are: 54.3%, 7.3%, 38.4%.
 
 In total, there is data for 59,400 water pumps.
 
 ## Data Cleaning  
 *Data Modification* Initially the datasets were cleaned to make them compatible with processing. Primarily this consisted of addressing missing data and special characters.  Then the predictor data was merged with the response data into a single dataset.
 
-*Data Excluded* Following the merge, the pump ID was elimianted as it is not a meaningful predictor.  One predictor, **recorded_by** was excluded because it was constant for all water pumps. Several other cartegorical predictors were eliminated for having an excessive number of (greater than 30) levels.  A list of these factor variables, and their associated number of levels, is available in APPENDIX B. This step was needed when Lasso was used.  This because Lasso requires the inputs to be of type *model.matrix*.  A model matrix creates a separate column of data for each level of each factor variable.  This has a detrimental impact on both memory requirements and processing speed.  In this case, the retention of all such factor variables exceeded the capacity of the R software.  Further, it is a reasonable assumption that if a large proportion of the data is spread across many nomial factor levels, that factor variable will have diminished predictive power.   
+*Data Excluded* Following the merge, the pump ID was eliminated as it is not a meaningful predictor.  One predictor, **recorded_by** was excluded because it was constant for all water pumps. Several other categorical predictors were eliminated for having an excessive number of (greater than 30) levels.  A list of these factor variables, and their associated number of levels, is available in *APPENDIX B*. This step was needed when Lasso was used.  This because Lasso requires the inputs to be of type *model.matrix*.  A model matrix creates a separate column of data for each level of each factor variable.  This has a detrimental impact on both memory requirements and processing speed.  In this case, the retention of all such factor variables exceeded the capacity of the R software.  Further, it is a reasonable assumption that if a large proportion of the data is spread across many nominal factor levels, that factor variable will have diminished predictive power.   
 
 For model types based on Random Forest, however, no such model matrix was required.  As such, for these approaches a separate dataset containing these variables was retained.
 
@@ -32,39 +32,43 @@ For model types based on Random Forest, however, no such model matrix was requir
 ## Data Exploration
 Prior to model fitting, some effort was invested in understanding the content of the data.  Various hypotheses were made and then evaluated through a number of simple, ad hoc analyses.
 
-One such analysis was a data visualization where the frequency of the three **state_groups**, for each **region**, was plotted at the center of the respctive region on a map of Tanzania.  This provide an understanding of how the regions were dispersed throughout the country, an indication of how many water pumps were contained in each region, and quick assessment of whether each **region** had similar proportions of F, FNR, and NF water pumps.
+One such analysis was a data visualization where the frequency of the three **status_groups**, for each **region**, was plotted at the center of the respective region on a map of Tanzania.  This provide an understanding of how the regions were dispersed throughout the country, an indication of how many water pumps were contained in each region, and quick assessment of whether each **region** had similar proportions of F, FNR, and NF water pumps.
 
-From this map we observe that the distribution of the **regions** show no clear geometric pattern.  Further, likely due to differing sizes and populations, there is a lot of variability in the number of water pumps per **region**. Finally, it seems that if anything can be gleaned from the frequency data, it is that districts with the fewest water pumps might have a larger number that are NF.  However, this requires further study.
+From this map we observe that the distribution of the **regions** show no clear geometric pattern.  Further, likely due to differing sizes and populations, there is a lot of variability in the number of water pumps per **region**. Finally, it seems that if anything can be gleaned from the frequency data, it is that districts with the fewest water pumps might have a larger number that are NF.  For this reason a variable **regionalPumpCount** was added to the dataset.
 
-Additionally visual analysis was performed by plotting the position of each water pumps, color coded by **state_group**.  A simple spherical earth transformation allowed the water pumps longitude and latitude to be plotted in 
-on a flat plane with 
+# INSERT RITA'S GEO POSITION MAP
 
-Given its ability as a variable selector, Lasso fitting was employed as a means of assessing the which variables had the largest impact on the response. This ultimately allowed for a subset of candidate variables to be selected for future fittings. A list of the variables identified relevant is provided in APPENDIX C.
+Additionally visual analysis was performed by plotting the position of each water pumps, color coded by **status_group**.  A simple spherical earth transformation allowed the water pump positions in longitude and latitude to be plotted in on a flat plane using linear units of kilometers. Given that linear units are preferable for fitting models, these transformed positions were added to the dataset as **East_km** and **North_km**.  Because these would exhibit exceptionally high correlation with **longitude** and **latitude**, respectively, the latter variables were removed from the dataset.
 
-    - 
-    - Random Forest and Binomial Lasso perform variable selection
-    
+# INSERT PUMP LOCATION MAP
+
+This plot was examined to see if there were signs of clustering among pumps of a specific **status_group**.  While it did appear that there were some areas of the country with elevated proportions NF pumps, there was no recognizable pattern that could be leveraged for this evaluation.  A visual comparison against a mean annual rainfall map of Tanzania (available on the internet), looked like it might exhibit correlation between areas with more rain and the location of all water pumps.  A similar map of Tanzania average temperatures showed a potential positive correlate between hot temperatures and NF pumps.  However, defining these relationships are beyond the scope of this effort.
+
+# DO WE NEED THIS IF MULTINOMIAL IS OMITTED?  DID BINOMIAL LASSO USE THIS SUBSET?
+Given its ability as a variable selector, Lasso fitting was employed as a means of assessing the which variables had the largest impact on the response. This ultimately allowed for a subset of candidate variables to be selected for future fittings. A list of the variables identified relevant is provided in *APPENDIX C*. As previously mentioned, no variable elimination was required for the Random Forest type models.
+
+
 ## Fit Approaches
-    - training vs validation (size, purpose, etc)
-    - Approach selection... lack of numerical data restricted what techniques could be used (nothing relying on euclidean distances)
-    - relatively few FNR points made resulted, meant prediction performance of FNR was poor with some models types.
-    - Approaches to deal with that: data balancing, one-vs-one binomial
-    - description of each approach
+For all models, cross validation was used.  This consisted of separating the data into **training** and **validation** sets.  The models were constructed using the **training** data, then their performances were evaluated using the **validation** data.  The split between the two sets was approximately 70% **training** and 30% **validation**.
     
-    Binary Lasso Model (using One vs One)
-    Random Forest
-    Random Forest with Boosting 
+Given that relatively few of the variables contained numeric data, model approaches that utilize Euclidean distances between datapoints could not be used. 
 
-**MORE METADATA TO FOLLOW**
+Because a small proportion of water pumps were of **status_group** FNR, some model types would ignore this state completely their predictions.  
+
+One approach for addressing this was the use of a Binary Outcome Lasso using a one-vs-one selection strategy.  With this strategy, three **sub-models** were built.  Each sub-model was assigned a level of the response variable.  The remaining two levels were given the value of **other**.  This forced the sub-model to focus on fitting only its assigned level.  The outcome of each sub-model was an estimated probability that the each datapoint belonged to the assigned level.  Each point was assessed against these three sets of predictions.  The level with the highest probability was selected. 
+
+Given their general suitability for datasets of this nature, Random Forest and Random Forest with Boosting were also used.
+    
+    Confusion Tables for each of the model types
+
 ```{r}
 #Libraries
 library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','knitr')
 lapply(library_list, require, character.only = TRUE)
 ```
 
-## Import Data
-
 ```{r}
+# Import Data
 # Define train_values_url
 train_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/4910797b-ee55-40a7-8668-10efd5c1b960.csv"
 WaterPumps_value = read.csv(train_values_url, header=TRUE, stringsAsFactors = FALSE)
@@ -76,9 +80,8 @@ test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68
 test_values = read.csv(test_values_url, header=TRUE, stringsAsFactors=TRUE)
 ```
 
-## Data Cleaning:
-
 ```{r}
+### Data Cleaning
 #Merge into a single datset
 WaterPumps = merge(WaterPumps_value, WaterPumps_label, by='id')
 
@@ -100,6 +103,7 @@ WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
 # Convert lat long to xy 
 WaterPumps$East_km = 1.862 * 60 * cos(WaterPumps$latitude*pi/180)*(WaterPumps$longitude)
 WaterPumps$North_km = 1.862 * 60 *(WaterPumps$latitude)
+WaterPumps = WaterPumps[ ,-which(names(WaterPumps) %in% c('longitude','latitude')) ]
 
 temp = rep(0, length(WaterPumps[,1]))
 regionLevels = unique(WaterPumps$region_code)
@@ -124,9 +128,8 @@ WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepV
 
 ```
 
-## Exploratory Analysis
-
 ```{r}
+###Exploratory Analysis
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
                                      setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
@@ -157,16 +160,15 @@ Tanzania_Map
 # Get Water Pump Operational State
 z = as.factor(WaterPumps_label[,2])
 
-# Plot Water pump Locations, color coded by Operational state.  Use [x>10] indexing to elimninate bogus zeroed data entries.
+# Plot Water pump Locations, color coded by Operational state.  Used [East_km > 20] indexing to elimninate bogus zeroed data entries from the plot.
 inds = WaterPumps$East_km > 20
 plot(WaterPumps$East_km[inds],WaterPumps$North_km[inds],col=c("green","blue","red")[z[inds]], xlab = 'Longitude (km)', ylab = 'Latitude (km)', pch = 18, main = 'Water Pump Locations (from Lon,Lat = [0,0])')
 grid()
 legend('bottomleft',legend = c('Functional','Repair','Non-Functional'), pch=18, col = c('green','blue','red'),inset = 0.01)
 ```
 
-## Train & Validation Split
-
 ```{r}
+# Train and Validation Split
 # Take Only Non-Missing Values
 WaterPumps <- WaterPumps[complete.cases(WaterPumps),]
 
@@ -185,9 +187,9 @@ train.y = WaterPumps$status_group[train]
 valid.y = WaterPumps$status_group[valid]
 ```
 
-## Results
+# Results
 
-# Binary Outcome Lasso
+## Binary Outcome Lasso
 
 ```{r}
 # Binary Outcome Lasso 
@@ -231,6 +233,7 @@ for (k in 1 : length(valid.y)) {
     bestCatValid[k] = LevelName[which.max(Predict.Valid[k,])]
 }
 
+
 bestCatTrain = rep('other',length(train.y))
 
 for (k in 1 : length(train.y)) {
@@ -250,7 +253,7 @@ kable(data.frame(Binary.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Pre
       caption = 'Validation Data Performance')
 ```
 
-# Random Forest 
+## Random Forest 
 
 ```{r}
 # Random Forest 
@@ -278,7 +281,7 @@ kable(data.frame(RF.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precisi
       caption = 'Validation Data Performance')
 ```
 
-# Random Forest with Boosting 
+## Random Forest with Boosting 
 
 ```{r}
 set.seed(500)
@@ -305,7 +308,7 @@ kable(data.frame(Boost.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Prec
       caption = 'Validation Data Performance')
 ```
 
-## Conclusions
+# Conclusion
 
 ```{r}
 Accuracy = data.frame('Model' = c('Binary Outcome Lasso','Random Forest','Boosted Random Forest'),
@@ -316,5 +319,3 @@ kable(Accuracy, caption = 'Model Comparison')
     
 
 ## Appendices
-    - Spatial plots
-    - Source code
