@@ -34,9 +34,9 @@ One such analysis was a data visualization where the frequency of the three **st
 
 Based on this map, it appears that districts with the fewest water pumps might have a larger number of pumps that are NF.  For this reason a variable **regionalPumpCount** was added to the dataset. 
 
-```{r}
+```{r, include=FALSE}
 #Libraries
-library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','knitr')
+library_list = list('ggplot2','glmnet','ggmap','reshape2', 'randomForest', 'gbm', 'caret','knitr', 'xgboost')
 lapply(library_list, require, character.only = TRUE)
 ```
 
@@ -53,7 +53,7 @@ test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68
 test_values = read.csv(test_values_url, header=TRUE, stringsAsFactors=TRUE)
 ```
 
-```{r,fig.width=7, fig.height=6}
+```{r,fig.width=9, fig.height=6}
 ### Data Cleaning
 #Merge into a single datset
 WaterPumps = merge(WaterPumps_value, WaterPumps_label, by='id')
@@ -85,23 +85,18 @@ for(i in 1 : length(regionLevels)) {
  temp[ind] = sum(ind)
 }
 WaterPumps$regionalPumpCount = temp
-
-
 ```
 
 
-```{r, echo = TRUE, eval = TRUE}
+```{r}
 # Clean Data: Filter out variables with more than 30 factors - model matrix becomes too large
 KeepVars = setNames(data.frame(sapply(WaterPumps[,which(sapply(WaterPumps, is.character))], function(x){if(length(unique(x))>30){FALSE} else {TRUE}})),
                     c('factorlevels'))
 KeepVars$vars = rownames(KeepVars)
 WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepVars$factorlevels==FALSE)])]
-
-# Remove Multicollinearity
-
 ```
 
-```{r, fig.width=7, fig.height=6}
+```{r, fig.width=9, fig.height=6}
 ###Exploratory Analysis
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
@@ -244,6 +239,8 @@ kable(data.frame(Binary.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Pre
       caption = 'Validation Data Performance')
 ```
 
+In this approach, we obtained training set prediction accuracy of `r round(Binary.ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was `r round(Binary.ConfValid$overall["Accuracy"][[1]],3)*100`%.
+
 ## Random Forest 
 
 ```{r}
@@ -261,7 +258,7 @@ rf.predicted = predict(RandomForest.mod, WaterPumps[valid,])
 RF.ConfValid = confusionMatrix(rf.predicted, valid.y)
 ```
 
-From the random forest procedure, we obtained training set prediction accuracy of `r round(RF.ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(RF.ConfValid$overall["Accuracy"][[1]],3)*100`%. 
+From the random forest procedure, we obtained training set prediction accuracy of `r round(RF.ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(RF.ConfValid$overall["Accuracy"][[1]],3)*100`%. Based on this procedure, we also know that location, quantitry and pump age are some of the most powerful predictors. 
 
 
 ```{r}
@@ -277,7 +274,7 @@ kable(data.frame(RF.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precisi
 ```{r}
 set.seed(500)
 boost.mod=gbm(status_group~.,data=WaterPumps[train,],distribution="multinomial",n.trees=1000, interaction.depth=6, shrinkage=0.005)
-summary(boost.mod)
+summary(boost.mod)$plot
 # Prediction error in the training data set
 boost.fitted = predict(boost.mod, newdata=WaterPumps[train,], n.trees = 500, type='response')
 boost.fitted <- apply(boost.fitted, 1, which.max)
@@ -299,14 +296,94 @@ kable(data.frame(Boost.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Prec
       caption = 'Validation Data Performance')
 ```
 
-# Conclusion
+# Tree Boosting Algorithm with XGBoost
 
-Based on the results obtained with the previous models, it is evident that the random forest peroforms best. Below is the comparison of prediction accuracy of all three models over the validation dataset. 
+This is an alternative boosting algorithm, which is often deemed as the most effective and most commonly used for the boost procedure. It has linear model solver as well as tree learning algorithm. While it may conceptually similar to the gbm algorithm, it does perform slightly better on the training and validation data sets. 
 
 ```{r}
-Accuracy = data.frame('Model' = c('Binary Outcome Lasso','Random Forest','Boosted Random Forest'),
+library(dplyr)
+features = names(WaterPumps)
+features = features[!features %in% c('status_group')]
+
+xgboost.data = WaterPumps[,features]
+
+response = as.numeric(WaterPumps$status_group) - 1
+xgboost.modelmatrix = model.matrix(~., xgboost.data)
+xgboost.train.x = xgboost.modelmatrix[train,2:ncol(xgboost.modelmatrix)]
+xgboost.train.y = response[train]
+xgboost.valid.x = xgboost.modelmatrix[valid,2:ncol(xgboost.modelmatrix)]
+xgboost.valid.y = response[valid]
+
+no_of_classes = length(unique(response))
+
+train_matrix = xgb.DMatrix(data  = xgboost.train.x, label = xgboost.train.y)
+
+best_param = list()
+best_logloss = Inf
+best_logloss_index = 0
+
+gen_params = function() {
+      param <- list(objective = "multi:softmax",
+          num_class = no_of_classes,
+          max_depth = sample(20:25, 1),
+          eta = runif(1, .03, .4),
+          gamma = runif(1, 0.0, 0.3),
+          subsample = runif(1, .5, .9),
+          colsample_bytree = runif(1, .5, .8),
+          min_child_weight = sample(1:20, 1),
+          max_delta_step = sample(1:10, 1)
+          )
+     return(param)
+}
+
+
+for (iter in 1:10) {
+    param = gen_params()
+    cv.nround = 5
+    cv.nfold = 5
+    cv_model <- xgb.cv(data=train_matrix, params = param, nthread=6,
+                    nfold=cv.nfold, nrounds=cv.nround,
+                    verbose = F,  metrics = list('merror'))
+    min_logloss = min(cv_model$evaluation_log[, 'test_merror_mean'])
+    min_logloss_index = which.min(unlist(cv_model$evaluation_log[, 'test_merror_mean']))
+    if (min_logloss < best_logloss) {
+        best_logloss = min_logloss
+        best_logloss_index = min_logloss_index
+        best_param = param
+    }
+}
+
+nround = 100
+cv_best_model <- xgboost(data=train_matrix,params=best_param, nrounds=nround, nthread=6, verbose = F)
+
+train_pred <- predict(cv_best_model, newdata = xgboost.train.x)
+train_prediction = data.frame(prediction = train_pred + 1, label = xgboost.train.y + 1)
+ConfTrainXGBoost = confusionMatrix(train_prediction$label, train_prediction$prediction)
+
+valid_pred = predict(cv_best_model, newdata = xgboost.valid.x)
+valid_prediction = data.frame(prediction = valid_pred + 1, label = xgboost.valid.y + 1)
+ConfValidXGBoost = confusionMatrix(valid_prediction$label, valid_prediction$prediction)
+importance_matrix = xgb.importance(feature_names = features, model = cv_best_model)
+gp = xgb.plot.importance(importance_matrix)
+```
+
+```{r}
+kable(data.frame(ConfTrainXGBoost$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+      caption = 'Training Data Performance')
+
+kable(data.frame(ConfValidXGBoost$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+      caption = 'Validation Data Performance')
+```
+
+
+# Conclusion
+
+Based on the results obtained with the previous models, it is evident that the random forest peroforms best. Below is the comparison of prediction accuracy of all three models over the validation dataset. We have also submitted out predictions to the competition. While we didn't really hit the top ten of the leaderboard, it was a great experience and something we would definitely do again. 
+
+```{r}
+Accuracy = data.frame('Model' = c('Binary Outcome Lasso','Random Forest','Boosted Random Forest', 'XGBoost'),
                       'Accuracy' = c(Binary.ConfValid$overall[['Accuracy']][[1]],RF.ConfValid$overall[['Accuracy']][[1]],
-                                     Boost.ConfValid$overall[['Accuracy']][[1]]))
+                                     Boost.ConfValid$overall[['Accuracy']][[1]], ConfValidXGBoost$overall[['Accuracy']][[1]]))
 kable(Accuracy, caption = 'Model Comparison')
 ```
     
@@ -322,5 +399,40 @@ kable(metadata,caption = 'Metadata')
 ```
 
 ## Appendix B
+
+```{r}
+kable(KeepVars, caption='Dropped Predictors')
+```
+
+## Appendix C
+
+```{r, fig.height=5, fig.width=7}
+ggplot(WaterPumps, aes(x=payment))+
+  geom_bar(stat='count', aes(fill=status_group))+
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle('Water Pump Status by Payment Type')
+
+ggplot(WaterPumps, aes(x=basin))+
+  geom_bar(stat='count', aes(fill=status_group))+
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle('Water Pump Status by Basin')
+
+ggplot(WaterPumps, aes(x=quantity_group))+
+  geom_bar(stat='count', aes(fill=status_group))+
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle('Water Pump Status by Quantity Group')
+
+ggplot(WaterPumps, aes(x=waterpoint_type_group))+
+  geom_bar(stat='count', aes(fill=status_group))+
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle('Water Pump Status by Waterpoint')
+
+```
+
+## Appendix D
 
 Source code for the project can be found here: https://github.com/StatisticsGuru/WaterPump 
