@@ -261,7 +261,7 @@ rf.predicted = predict(RandomForest.mod, WaterPumps[valid,])
 RF.ConfValid = confusionMatrix(rf.predicted, valid.y)
 ```
 
-From the random forest procedure, we obtained training set prediction accuracy of `r round(ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(ConfValid$overall["Accuracy"][[1]],3)*100`%. 
+From the random forest procedure, we obtained training set prediction accuracy of `r round(RF.ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(RF.ConfValid$overall["Accuracy"][[1]],3)*100`%. 
 
 
 ```{r}
