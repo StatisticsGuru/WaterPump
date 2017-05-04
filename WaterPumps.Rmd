@@ -8,7 +8,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE, cache=TRUE)
 ```
 ## About this Project
-Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predict where water pumps were likely to be functional, in need of repair of not functional at a certainl locale. 
+Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predict where water pumps were likely to be functional, in need of repair or not functional at a certain locale. 
 
 A smart understanding of which water pumps will fail can improve maintenance operations and ensure that clean, potable water is available to communities across Tanzania.
 
@@ -17,7 +17,7 @@ More information about the challenge and the dataset can be found here - https:/
 ## About the Dataset
 The datasets for this project were downloaded from www.drivendata.org and consisted of a two files of comma separated format.  This first file contains 40 characteristic data of each water pump, indexed by a pump ID, to be used as predictors. A list of these predictors is provided in *APPENDIX A*.
 
-The second file contains the status_group for each water pump, also indexed by pump ID.  The status_group is the response we are attempting to predict and indicates the condition of a water pump.  Its value can be:  Functional (F), FunctionalNeedsRepair (FNR), or NonFunctional(NF).  The respective percentages of each are: 54.3%, 7.3%, 38.4%.
+The second file contains the **status_group** for each water pump, also indexed by pump ID.  The **status_group** is the response we are attempting to predict and indicates the condition of a water pump.  Its value can be:  Functional (F), FunctionalNeedsRepair (FNR), or NonFunctional(NF).  The respective percentages of each are: 54.3%, 7.3%, 38.4%.
 
 In total, there is data for 59,400 water pumps.
 
@@ -122,7 +122,7 @@ Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
 Tanzania_Map
 ```
 
-Additionally visual analysis was performed by plotting the position of each water pumps, color coded by **status_group**.  A simple spherical earth transformation allowed the water pump positions in longitude and latitude to be plotted in on a flat plane using linear units of kilometers. Given that linear units are preferable for fitting models, these transformed positions were added to the dataset as **East_km** and **North_km**.  Because these would exhibit exceptionally high correlation with **longitude** and **latitude**, respectively, the latter variables were removed from the dataset.
+Additionally, a visual analysis was performed by plotting the position of each water pumps, color coded by **status_group**.  A simple spherical earth transformation allowed the water pump positions in longitude and latitude to be plotted in on a flat plane using linear units of kilometers. Given that linear units are preferable for fitting models, these transformed positions were added to the dataset as **East_km** and **North_km**.  Because these would exhibit exceptionally high correlation with **longitude** and **latitude**, respectively, the latter variables were removed from the dataset.
 
 
 ```{r}
@@ -147,9 +147,9 @@ For all models, cross validation was used.  This consisted of separating the dat
     
 Given that relatively few of the variables contained numeric data, model approaches that utilize Euclidean distances between datapoints could not be used. 
 
-Because a small proportion of water pumps were of **status_group** FNR, some model types would ignore this state completely their predictions.
+Because a small proportion of water pumps were of **status_group** FNR, some model types would ignore this state completely in their predictions.
 
-One approach for addressing this was the use of a Binary Outcome Lasso using a one-vs-one selection strategy.  With this strategy, three **sub-models** were built.  Each sub-model was assigned a level of the response variable.  The remaining two levels were given the value of **other**.  This forced the sub-model to focus on fitting only its assigned level.  The outcome of each sub-model was an estimated probability that the each datapoint belonged to the assigned level.  Each point was assessed against these three sets of predictions.  The level with the highest probability was selected. 
+One approach for addressing this was the use of a Binary Outcome Lasso using a one-vs-one selection strategy.  With this strategy, three **sub-models** were built.  Each sub-model was assigned a level of the response variable.  The remaining two levels were given the value of **other**.  This forced the sub-model to focus on fitting only its assigned level.  The outcome of each sub-model was an estimated probability that each datapoint belonged to the assigned level.  Each point was assessed against these three sets of predictions.  The pointe was assigned the level with the highest probability. 
 
 Given their general suitability for datasets of this nature, Random Forest and Random Forest with Boosting were also used.
 
@@ -378,7 +378,7 @@ kable(data.frame(ConfValidXGBoost$byClass)[,c('Sensitivity', 'Specificity', 'Pre
 
 # Conclusion
 
-Based on the results obtained with the previous models, it is evident that the random forest peroforms best. Below is the comparison of prediction accuracy of all three models over the validation dataset. We have also submitted out predictions to the competition. While we didn't really hit the top ten of the leaderboard, it was a great experience and something we would definitely do again. 
+Based on the results obtained with the previous models, it is evident that the random forest performs best. Below is the comparison of prediction accuracy of all three models over the validation dataset. We have also submitted out predictions to the competition. While we didn't really hit the top ten of the leaderboard, it was a great experience and something we would definitely do again. 
 
 ```{r}
 Accuracy = data.frame('Model' = c('Binary Outcome Lasso','Random Forest','Boosted Random Forest', 'XGBoost'),

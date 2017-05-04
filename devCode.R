@@ -8,7 +8,7 @@ modelDataLabels = read.csv(fileModelLabels, header = TRUE, stringsAsFactors = TR
 WaterPumps = modelDataValues
 
 WaterPumps$recorded_by <- NULL
-killList = which(sapply(WaterPumps, function(x) length(unique(x) ) ) > 100)
+killList = which(sapply(WaterPumps, function(x) length(unique(x) ) ) > 120)
 killList = killList[-1]
 fnames = names(WaterPumps)
 for (i in killList) { WaterPumps[fnames[i]] <- NULL}
@@ -22,32 +22,37 @@ X = WaterPumps[,-c(1,2)]
 Y = WaterPumps$PumpState
 
 
-mLevelProbs <- function(X,Y){
-    nPredictors = ncol(X)
-    allOutcomes = unique(Y)
-    nOutcomes = length(allOutcomes)
+maxLevels = max( sapply(WaterPumps, function(X) length(unique(X)) ) )
+
+data = WaterPumps
+nPredictors = ncol(data)
+allOutcomes = unique(Y)
+nOutcomes = length(allOutcomes)
+
+P = array(0, c( nOutcomes, nPredictors, maxLevels) ) 
+
+
+
+for(j in 1 : nPredictors){
     
-    P = list()
-    for(i in 1 : nPredictors){
-        L = list()
-        allLevels = unique(X[,i])
-        nLevels = length(allLevels) # how man ylevels does this predicotr have
-        
-        for(j in 1 : nOutcomes){
-            data = X[as.character(Y) == as.character(allOutcomes[j]),]
-            totalEntries = length(data[,1]) # how man yoccurences are there of the specified outcome?
-            c = 0
-            for(k in 1 : nLevels){
-                nPoints = sum(as.character(data[,i]) == as.character(allLevels[k]))
-                c[k] = nPoints/totalEntries # what proportion of points fall on this level, 
-                # for this predictor, given this outcome
-            }   
-            L[[j]] = c
-        }
-        P[[i]] = L
+    allLevels = unique(X[,j])
+    nThisLevel = length(allLevels) # how man ylevels does this predicotr have
+    
+    for(i in 1 : nOutcomes){
+        data = X[as.character(Y) == as.character(allOutcomes[i]),]
+        totalEntries = length(data[,1]) # how man yoccurences are there of the specified outcome?
+        c = 0
+        for(k in 1 : nThisLevel){
+            nPoints = sum(as.character(data[,i]) == as.character(allLevels[k]))
+            P[i,j,k] = nPoints/totalEntries # what proportion of points fall on this level, 
+            # for this predictor, given this outcome
+        }   
     }
-    
 }
 
-P = mLevelProbs(X,Y)
+
+
+
+
+
 
