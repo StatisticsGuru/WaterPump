@@ -8,7 +8,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE, cache=TRUE)
 ```
 ## About this Project
-Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predict where water pumps were likely to be functional, in need of repair or not functional at a certain locale. 
+Using data from Taarifa and the Tanzanian Ministry of Water, we set out to predict where water pumps were likely to be functional, in need of repair or not functional at a certain locale.
 
 A smart understanding of which water pumps will fail can improve maintenance operations and ensure that clean, potable water is available to communities across Tanzania.
 
@@ -21,18 +21,18 @@ The second file contains the **status_group** for each water pump, also indexed 
 
 In total, there is data for 59,400 water pumps.
 
-## Data Cleaning  
+## Data Cleaning
 *Data Modification* Initially the datasets were cleaned to make them compatible with processing. Primarily this consisted of addressing missing data and special characters.  Then the predictor data was merged with the response data into a single dataset.
 
-*Data Excluded* Following the merge, the pump ID was eliminated as it is not a meaningful predictor.  One predictor, **recorded_by** was excluded because it had minimal variation for all water pumps. Several other categorical predictors were eliminated for having an excessive number of (greater than 30) levels.  A list of these factor variables, and their associated number of levels, is available in *APPENDIX B*. This step was needed when Lasso was used.  This because Lasso requires the inputs to be of type *model.matrix*.  A model matrix creates a separate column of data for each level of each factor variable.  This has a detrimental impact on both memory requirements and processing speed.  In this case, the retention of all such factor variables exceeded the capacity of the R software.  Further, it is a reasonable assumption that if a large proportion of the data is spread across many nominal factor levels, that factor variable will have diminished predictive power.   
+*Data Excluded* Following the merge, the pump ID was eliminated as it is not a meaningful predictor.  One predictor, **recorded_by** was excluded because it had minimal variation for all water pumps. Several other categorical predictors were eliminated for having an excessive number of (greater than 30) levels.  A list of these factor variables, and their associated number of levels, is available in *APPENDIX B*. This step was needed when Lasso was used.  This because Lasso requires the inputs to be of type *model.matrix*.  A model matrix creates a separate column of data for each level of each factor variable.  This has a detrimental impact on both memory requirements and processing speed.  In this case, the retention of all such factor variables exceeded the capacity of the R software.  Further, it is a reasonable assumption that if a large proportion of the data is spread across many nominal factor levels, that factor variable will have diminished predictive power.
 
 
 ## Data Exploration
-Prior to model fitting, some effort was invested in understanding the content of the data.  Various hypotheses were made and then evaluated through a number of simple, ad hoc analyses.
+Prior to model fitting, some effort was invested in understanding the content of the data.  Various hypotheses were made and then evaluated through a number of simple, ad hoc analyses (_refer to *APPENDIX C*_).
 
 One such analysis was a data visualization where the frequency of the three **status_groups**, for each **region**, was plotted at the center of the respective region on a map of Tanzania.  This map provide an understanding of how pump functionality was dispersed throughout the country, and serves as an indication of how many water pumps were contained in each region and whether each **region** had similar proportions of F, FNR, and NF water pumps.
 
-Based on this map, it appears that districts with the fewest water pumps might have a larger number of pumps that are NF.  For this reason a variable **regionalPumpCount** was added to the dataset. 
+Based on this map, it appears that districts with the fewest water pumps might have a larger number of pumps that are NF.  For this reason a variable **regionalPumpCount** was added to the dataset.
 
 ```{r, include=FALSE}
 #Libraries
@@ -53,12 +53,12 @@ test_values_url <- "http://s3.amazonaws.com/drivendata/data/7/public/702ddfc5-68
 test_values = read.csv(test_values_url, header=TRUE, stringsAsFactors=TRUE)
 ```
 
-```{r,fig.width=9, fig.height=6}
+```{r,fig.width=8, fig.height=6}
 ### Data Cleaning
 #Merge into a single datset
 WaterPumps = merge(WaterPumps_value, WaterPumps_label, by='id')
 
-#Convert all character variables to upper case and remove non alpha numeric variables 
+#Convert all character variables to upper case and remove non alpha numeric variables
 charcols = which(sapply(WaterPumps,is.character))
 WaterPumps[,charcols] <- sapply(WaterPumps[,charcols], toupper)
 WaterPumps[,charcols] <- sapply(WaterPumps[, charcols], function(x) gsub("[^[:alnum:]=\\.]",'',x))
@@ -67,13 +67,13 @@ WaterPumps[,charcols] <- sapply(WaterPumps[, charcols], function(x) gsub("[^[:al
 WaterPumps = WaterPumps[, -which(names(WaterPumps) %in% c('id','recorded_by'))]
 
 
-# Convert Latitude/Longitude to kilometers. 
+# Convert Latitude/Longitude to kilometers.
 #  - Uses 1862 meters per nautical mile (nmi).
 #  - Uses 60 nmi per degree of latitude
 #  - Uses 60 nmi per degree of longitude (at the equator)
 #  - Assumes a spherical earth model (for logitudes above and below the equator)
 
-# Convert lat long to xy 
+# Convert lat long to xy
 WaterPumps$East_km = 1.862 * 60 * cos(WaterPumps$latitude*pi/180)*(WaterPumps$longitude)
 WaterPumps$North_km = 1.862 * 60 *(WaterPumps$latitude)
 WaterPumps = WaterPumps[ ,-which(names(WaterPumps) %in% c('longitude','latitude')) ]
@@ -96,11 +96,11 @@ KeepVars$vars = rownames(KeepVars)
 WaterPumps = WaterPumps[,-which(names(WaterPumps) %in% KeepVars$vars[which(KeepVars$factorlevels==FALSE)])]
 ```
 
-```{r, fig.width=9, fig.height=6}
+```{r, fig.width=8, fig.height=6}
 ###Exploratory Analysis
 ## Aggregate waterpump count by region
 regional_geocodes = cbind.data.frame(data.frame("region" = unique(WaterPumps$region)),
-                                     setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')), 
+                                     setNames(data.frame(t(data.frame(lapply(lapply(unique(WaterPumps$region), function(x)paste0(x, ', Tanzania')),
                                                                              function(x) as.numeric(geocode(x)))))), c('longitude','latitude')))
 
 #Drop Row Names
@@ -117,8 +117,10 @@ Tanzania_Map = ggmap(get_googlemap(center=Tanzania, scale=2, zoom=6))+
     geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='orange', alpha=0.4,
                size=PumpsByRegion$needsrepair*0.01)+
     geom_point(aes(x=longitude, y=latitude), data=PumpsByRegion, col='red', alpha=0.4,
-               size=PumpsByRegion$nonfunctional*0.01)+
-    ggtitle('Number of Pumps by Status by Region')
+               size=PumpsByRegion$nonfunctional*0.01) +
+  theme(axis.title.x=element_blank()) +
+  theme(axis.title.y=element_blank())
+
 Tanzania_Map
 ```
 
@@ -144,12 +146,12 @@ The plot above was examined to see if there were signs of clustering among pumps
 ## Fit Approaches
 
 For all models, cross validation was used.  This consisted of separating the data into **training** and **validation** sets.  The models were constructed using the **training** data, then their performances were evaluated using the **validation** data.  The split between the two sets was approximately 70% **training** and 30% **validation**.
-    
-Given that relatively few of the variables contained numeric data, model approaches that utilize Euclidean distances between datapoints could not be used. 
+
+Given that relatively few of the variables contained numeric data, model approaches that utilize Euclidean distances between datapoints could not be used.
 
 Because a small proportion of water pumps were of **status_group** FNR, some model types would ignore this state completely in their predictions.
 
-One approach for addressing this was the use of a Binary Outcome Lasso using a one-vs-one selection strategy.  With this strategy, three **sub-models** were built.  Each sub-model was assigned a level of the response variable.  The remaining two levels were given the value of **other**.  This forced the sub-model to focus on fitting only its assigned level.  The outcome of each sub-model was an estimated probability that each datapoint belonged to the assigned level.  Each point was assessed against these three sets of predictions.  The pointe was assigned the level with the highest probability. 
+One approach for addressing this was the use of a Binary Outcome Lasso using a one-vs-one selection strategy.  With this strategy, three **sub-models** were built.  Each sub-model was assigned a level of the response variable.  The remaining two levels were given the value of **other**.  This forced the sub-model to focus on fitting only its assigned level.  The outcome of each sub-model was an estimated probability that each datapoint belonged to the assigned level.  Each point was assessed against these three sets of predictions.  The pointe was assigned the level with the highest probability.
 
 Given their general suitability for datasets of this nature, Random Forest and Random Forest with Boosting were also used.
 
@@ -178,7 +180,7 @@ valid.y = WaterPumps$status_group[valid]
 ## Binary Outcome Lasso
 
 ```{r}
-# Binary Outcome Lasso 
+# Binary Outcome Lasso
 temp = rep(0,length(valid.y))
 Predict.Valid = data.frame(model1 = temp,
                        model2 = temp,
@@ -200,14 +202,14 @@ for (each in levels(train.y)){
     LevelName[i] = each
     temp.y = train.y
     levels(temp.y) = list(other=c(levels(train.y)[!levels(train.y) %in% each]),selected=each)
-    
+
     # Fit LASSO
     fit.lasso = glmnet(train.x, temp.y, alpha=1, family = 'binomial')
-    
+
     # Cross-Validate to Find Best Lambda
     lasso.cv.out = cv.glmnet(train.x,temp.y,alpha=1,family = 'binomial')
     minlambda = lasso.cv.out$lambda.min
-    
+
     # fitted = predict(fit.lasso, newx=train.x, s=minlambda, type='class')
     Predict.Valid[,i] = predict(fit.lasso, newx=valid.x, s=minlambda, type = 'response')
     Predict.Train[,i] = predict(fit.lasso, newx=train.x, s=minlambda, type = 'response')
@@ -232,19 +234,19 @@ Binary.ConfValid = confusionMatrix(bestCatValid, valid.y)
 
 
 ```{r}
-kable(data.frame(Binary.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+kable(data.frame(Binary.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')],
       caption = 'Training Data Performance')
 
-kable(data.frame(Binary.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+kable(data.frame(Binary.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')],
       caption = 'Validation Data Performance')
 ```
 
 In this approach, we obtained training set prediction accuracy of `r round(Binary.ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was `r round(Binary.ConfValid$overall["Accuracy"][[1]],3)*100`%.
 
-## Random Forest 
+## Random Forest
 
 ```{r}
-# Random Forest 
+# Random Forest
 set.seed(500)
 WaterPumps[sapply(WaterPumps, is.character)] <- lapply(WaterPumps[, which(sapply(WaterPumps, is.character))], as.factor)
 RandomForest.mod = randomForest(status_group~., data=WaterPumps[train,], importance=TRUE, ntree=100)
@@ -258,18 +260,18 @@ rf.predicted = predict(RandomForest.mod, WaterPumps[valid,])
 RF.ConfValid = confusionMatrix(rf.predicted, valid.y)
 ```
 
-From the random forest procedure, we obtained training set prediction accuracy of `r round(RF.ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(RF.ConfValid$overall["Accuracy"][[1]],3)*100`%. Based on this procedure, we also know that location, quantitry and pump age are some of the most powerful predictors. 
+From the random forest procedure, we obtained training set prediction accuracy of `r round(RF.ConfTrain$overall["Accuracy"][[1]],3)*100`%. By contrast, in the validation set, the prediction accuracy was only `r round(RF.ConfValid$overall["Accuracy"][[1]],3)*100`%. Based on this procedure, we also know that location, quantitry and pump age are some of the most powerful predictors.
 
 
 ```{r}
-kable(data.frame(RF.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+kable(data.frame(RF.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')],
       caption = 'Training Data Performance')
 
-kable(data.frame(RF.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+kable(data.frame(RF.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')],
       caption = 'Validation Data Performance')
 ```
 
-## Random Forest with Boosting 
+## Random Forest with Boosting
 
 ```{r}
 set.seed(500)
@@ -289,16 +291,16 @@ Boost.ConfValid=confusionMatrix(boost.predicted, valid.y)
 ```
 
 ```{r}
-kable(data.frame(Boost.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+kable(data.frame(Boost.ConfTrain$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')],
       caption = 'Training Data Performance')
 
-kable(data.frame(Boost.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+kable(data.frame(Boost.ConfValid$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')],
       caption = 'Validation Data Performance')
 ```
 
 # Tree Boosting Algorithm with XGBoost
 
-This is an alternative boosting algorithm, which is often deemed as the most effective and most commonly used for the boost procedure. It has linear model solver as well as tree learning algorithm. While it may conceptually similar to the gbm algorithm, it does perform slightly better on the training and validation data sets. 
+This is an alternative boosting algorithm, which is often deemed as the most effective and most commonly used for the boost procedure. It has linear model solver as well as tree learning algorithm. While it may conceptually similar to the gbm algorithm, it does perform slightly better on the training and validation data sets.
 
 ```{r}
 library(dplyr)
@@ -325,7 +327,7 @@ best_logloss_index = 0
 gen_params = function() {
       param <- list(objective = "multi:softmax",
           num_class = no_of_classes,
-          max_depth = sample(20:25, 1),
+          max_depth = sample(10:15, 1),
           eta = runif(1, .03, .4),
           gamma = runif(1, 0.0, 0.3),
           subsample = runif(1, .5, .9),
@@ -368,17 +370,17 @@ gp = xgb.plot.importance(importance_matrix)
 ```
 
 ```{r}
-kable(data.frame(ConfTrainXGBoost$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+kable(data.frame(ConfTrainXGBoost$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')],
       caption = 'Training Data Performance')
 
-kable(data.frame(ConfValidXGBoost$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')], 
+kable(data.frame(ConfValidXGBoost$byClass)[,c('Sensitivity', 'Specificity', 'Precision','Recall','Balanced.Accuracy')],
       caption = 'Validation Data Performance')
 ```
 
 
 # Conclusion
 
-Based on the results obtained with the previous models, it is evident that the random forest performs best. Below is the comparison of prediction accuracy of all three models over the validation dataset. We have also submitted out predictions to the competition. While we didn't really hit the top ten of the leaderboard, it was a great experience and something we would definitely do again. 
+Based on the results obtained with the previous models, it is evident that the random forest performs best. Below is the comparison of prediction accuracy of all three models over the validation dataset. We have also submitted out predictions to the competition. While we didn't really hit the top ten of the leaderboard, it was a great experience and something we would definitely do again.
 
 ```{r}
 Accuracy = data.frame('Model' = c('Binary Outcome Lasso','Random Forest','Boosted Random Forest', 'XGBoost'),
@@ -386,7 +388,7 @@ Accuracy = data.frame('Model' = c('Binary Outcome Lasso','Random Forest','Booste
                                      Boost.ConfValid$overall[['Accuracy']][[1]], ConfValidXGBoost$overall[['Accuracy']][[1]]))
 kable(Accuracy, caption = 'Model Comparison')
 ```
-    
+
 
 # Appendices
 
@@ -406,33 +408,145 @@ kable(KeepVars, caption='Dropped Predictors')
 
 ## Appendix C
 
-```{r, fig.height=5, fig.width=7}
-ggplot(WaterPumps, aes(x=payment))+
-  geom_bar(stat='count', aes(fill=status_group))+
-  theme(legend.title=element_blank())+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
-  ggtitle('Water Pump Status by Payment Type')
+### Population Vs Water Pump State
+To check how population impacts the condition on water pumps, we aggregated population by region and grouped the status of water pumps per region.
+As as population grows, no of non functional water pumps goes down. We can clearly see need of repair increase with population.
 
-ggplot(WaterPumps, aes(x=basin))+
-  geom_bar(stat='count', aes(fill=status_group))+
-  theme(legend.title=element_blank())+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
-  ggtitle('Water Pump Status by Basin')
+```{r, fig.height=3, fig.width=7}
+populationSum = aggregate(population~region, sum, data=WaterPumps)
+functionalByRegion =    aggregate(status_group~region, subset(WaterPumps,status_group=='functional'), function(x) length(x))
+names(functionalByRegion) <- c("region", "functional")
+nonfunctionalByRegion = aggregate(status_group~region, subset(WaterPumps,status_group=='non functional'), function(x) length(x))
+names(nonfunctionalByRegion) <- c("region", "non functional")
+repfunctionalByRegion = aggregate(status_group~region, subset(WaterPumps,status_group=='functional needs repair'), function(x) length(x))
+names(repfunctionalByRegion) <- c("region", "functional needs repair")
+regionpopstat = Reduce(function(x, y) merge(x, y,  by='region', all=TRUE), list(populationSum, functionalByRegion, nonfunctionalByRegion,repfunctionalByRegion))
+names(regionpopstat) <- c('region','population', 'functional' ,'non_functional','needs_repair')
 
-ggplot(WaterPumps, aes(x=quantity_group))+
-  geom_bar(stat='count', aes(fill=status_group))+
-  theme(legend.title=element_blank())+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
-  ggtitle('Water Pump Status by Quantity Group')
-
-ggplot(WaterPumps, aes(x=waterpoint_type_group))+
-  geom_bar(stat='count', aes(fill=status_group))+
-  theme(legend.title=element_blank())+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
-  ggtitle('Water Pump Status by Waterpoint')
-
+ggplot(regionpopstat, aes(population/1000, needs_repair)) + geom_point() + stat_smooth()
 ```
+
+### Waterpoint Type Vs Water Pump State
+Another important aspect to check is whether the issue is with the water delivery system or the source of water.  The following plot depicts various waterpoint types categorized by their working status. It’s clear from the plot that ‘communal standpipe’ and ‘improved spring’ water point types require more maintenance than ‘hand pump’ or ‘cattle through’.
+
+```{r, fig.height=3, fig.width=7}
+watertype = data.frame(prop.table(table(WaterPumps$waterpoint_type_group, WaterPumps$status_group), margin = 1))
+ggplot(watertype, aes(Var1, Freq, fill = Var2)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_continuous(labels=scales::percent) +
+   labs(x="Waterpoint Type",y="%") +
+  theme(axis.title.x=element_blank()) +
+  theme(legend.title = element_blank()) +
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+```
+
+### Management Vs Water Pump State
+Who manages the system is also a good indicator to explore. It seems like management by a commercial or political entity does result in more functional water pumps. Clearly, water pumps managed by user groups are not doing so great!
+
+```{r, fig.height=3, fig.width=7}
+mgmttype = data.frame(prop.table(table(WaterPumps$management_group, WaterPumps$status_group), margin = 1))
+ggplot(mgmttype, aes(Var1, Freq, fill = Var2)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_continuous(labels=scales::percent) +
+   labs(x="Mgmt Type",y="%") +
+  theme(legend.position="none") +
+  theme(axis.title.x=element_blank()) +
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+```
+
+It's also important to mention how payment scheme helps in better condition of water pumps.
+
+```{r, fig.height=3, fig.width=7}
+paymenttype = data.frame(prop.table(table(WaterPumps$payment_type, WaterPumps$status_group), margin = 1))
+ggplot(paymenttype, aes(Var1, Freq, fill = Var2)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_continuous(labels=scales::percent) +
+   labs(x="Mgmt Type",y="%") +
+  theme(legend.position="none") +
+  theme(axis.title.x=element_blank()) +
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+```
+Here is further analysis of the water pumps which are being used for free.
+It's not surprise that commericially operated water pumps are more non functional if they are used for free.
+Same is the case for any other management scheme unless goverment or any political entity operates, in that case more water pumps are functional.
+
+```{r, fig.height=3, fig.width=7}
+neverpaydf = WaterPumps[WaterPumps$payment_type == 'NEVERPAY',]
+neverpaytype = data.frame(prop.table(table(neverpaydf$management_group, neverpaydf$status_group), margin = 1))
+ggplot(neverpaytype, aes(Var1, Freq, fill = Var2)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    scale_y_continuous(labels=scales::percent) +
+   labs(x="Mgmt Type",y="%") +
+  theme(legend.position="none") +
+  theme(axis.title.x=element_blank()) +
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+```
+
+```{r, eval=FALSE, fig.height=6, fig.width=7}
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+p1 =ggplot(WaterPumps, aes(x=payment))+
+  geom_bar(stat='count', aes(fill=status_group))+
+  theme(legend.position="none") +
+  theme(axis.title.y=element_blank()) +
+  theme(axis.text.x=element_text(angle = -20, hjust = 0))
+
+p2 = ggplot(WaterPumps, aes(x=basin))+
+  geom_bar(stat='count', aes(fill=status_group))+
+  theme(legend.position="none") +
+  theme(axis.title.y=element_blank()) +
+  theme(axis.text.x=element_text(angle = -20, hjust = 0))
+
+p3 = ggplot(WaterPumps, aes(x=quantity_group))+
+  geom_bar(stat='count', aes(fill=status_group))+
+  theme(legend.position="none") +
+  theme(axis.title.y=element_blank()) +
+  theme(axis.text.x=element_text(angle = -20, hjust = 0))
+
+p4 = ggplot(WaterPumps, aes(x=waterpoint_type_group))+
+  geom_bar(stat='count', aes(fill=status_group))+
+  theme(legend.position="none") +
+  theme(axis.title.y=element_blank()) +
+  theme(axis.text.x=element_text(angle = -20, hjust = 0))
+
+multiplot(p1, p2, p3, p4, cols=2)
+```
+
 
 ## Appendix D
 
-Source code for the project can be found here: https://github.com/StatisticsGuru/WaterPump 
+Source code for the project can be found here: https://github.com/StatisticsGuru/WaterPump
