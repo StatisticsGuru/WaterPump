@@ -7,7 +7,7 @@ Created on Tue May 23 11:14:09 2017
 
 # Import Libraries
 import pandas as pd
-import patsy
+from patsy import dmatrices
 
 # Import Data
 # Define train_values_url
@@ -23,7 +23,11 @@ testvalues = pd.read_csv(test_values_url)
 # Merge into a single dataframe
 WaterPumps = trainvalues.merge(trainlabel, on='id')
 
-# Convert data frame into design matrix
-formula = 'status_group~'+('+'.join(WaterPumps.columns-['status_group']))
-print(formula)
-y_train, X_train = patsy(formula=formula, WaterPumps)
+# Drop columns that aren't predictive of the outcome
+WaterPumps.drop(['id','recorded_by'], axis=1, inplace=True)
+# Select character columns from the dataset
+WaterPumps_char = WaterPumps[[x for x,y in enumerate(WaterPumps.dtypes) if y =='object']]
+
+# Convert character data frame into design matrix
+formula = 'status_group~'+('+'.join(WaterPumps_char.columns.difference(['status_group'])))
+y_train, X_train = dmatrices("status_group~payment_type", WaterPumps_char)
